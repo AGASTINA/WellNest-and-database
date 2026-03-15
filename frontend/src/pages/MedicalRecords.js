@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getUserMedicalRecords, createMedicalRecord, updateMedicalRecord, deleteMedicalRecord } from '../utils/medicalApi';
+import PageHeader from '../components/PageHeader';
 
 const MedicalRecords = () => {
   const [records, setRecords] = useState([]);
@@ -111,26 +112,27 @@ const MedicalRecords = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 p-8">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-8">
-          <div>
-            <h1 className="text-4xl font-bold text-gray-800 mb-2">Medical Records</h1>
-            <p className="text-gray-600">Manage your health records and medical history</p>
-          </div>
-          <button
-            onClick={() => {
-              resetForm();
-              setShowModal(true);
-            }}
-            className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center"
-          >
-            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Add Record
-          </button>
-        </div>
+    <div className="min-h-screen wellnest-app-bg p-8">
+      <div className="max-w-7xl mx-auto wellnest-content-layer">
+        <PageHeader
+          title="Medical Records"
+          subtitle="Manage your health records and medical history."
+          icon="📁"
+          action={
+            <button
+              onClick={() => {
+                resetForm();
+                setShowModal(true);
+              }}
+              className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+            >
+              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Add Record
+            </button>
+          }
+        />
 
         {loading ? (
           <div className="text-center py-12">
@@ -139,7 +141,7 @@ const MedicalRecords = () => {
         ) : (
           <div className="grid grid-cols-1 gap-6">
             {records.map((record) => (
-              <div key={record.id} className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
+              <div key={record.id} className="wellnest-surface p-6 hover:shadow-lg transition-shadow wellnest-emoji-card">
                 <div className="flex justify-between items-start mb-4">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
@@ -239,7 +241,7 @@ const MedicalRecords = () => {
             ))}
 
             {records.length === 0 && (
-              <div className="text-center py-12 bg-white rounded-lg">
+              <div className="text-center py-12 wellnest-surface">
                 <p className="text-gray-500">No medical records found. Add your first record!</p>
               </div>
             )}

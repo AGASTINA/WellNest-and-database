@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:8081/api';
+const API_BASE_URL = 'http://localhost:3000/api';
 
 const getAuthHeader = () => {
     const token = localStorage.getItem('token');
@@ -24,6 +24,24 @@ export const getUserSessions = async () => {
     });
     if (!response.ok) throw new Error('Failed to fetch workout sessions');
     return response.json();
+};
+
+export const updateWorkoutSession = async (sessionId, sessionData) => {
+    const response = await fetch(`${API_BASE_URL}/workout-sessions/${sessionId}`, {
+        method: 'PUT',
+        headers: getAuthHeader(),
+        body: JSON.stringify(sessionData)
+    });
+    if (!response.ok) throw new Error('Failed to update workout session');
+    return response.json();
+};
+
+export const deleteWorkoutSession = async (sessionId) => {
+    const response = await fetch(`${API_BASE_URL}/workout-sessions/${sessionId}`, {
+        method: 'DELETE',
+        headers: getAuthHeader()
+    });
+    if (!response.ok) throw new Error('Failed to delete workout session');
 };
 
 export const getSessionsByDateRange = async (startDate, endDate) => {

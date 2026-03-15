@@ -27,6 +27,7 @@ const Login = () => {
       document.getElementById('google-signin-btn'),
       { theme: 'outline', size: 'large', width: '100%' }
     );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [googleClientId]);
 
   const validateForm = () => {
@@ -77,7 +78,7 @@ const Login = () => {
     setApiError('');
 
     try {
-      const response = await fetch('http://localhost:8081/api/auth/login', {
+      const response = await fetch('http://localhost:3000/api/auth/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -114,7 +115,7 @@ const Login = () => {
     setApiError('');
 
     try {
-      const res = await fetch('http://localhost:8081/api/auth/google', {
+      const res = await fetch('http://localhost:3000/api/auth/google', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

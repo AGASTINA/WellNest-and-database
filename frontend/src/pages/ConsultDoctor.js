@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import HospitalMap from '../components/HospitalMap';
+import PageHeader from '../components/PageHeader';
 import { 
   getAllDoctors, 
   getAllHospitals, 
@@ -26,10 +27,25 @@ const ConsultDoctor = () => {
     notes: ''
   });
 
-  useEffect(() => {
-    loadData();
-    getUserLocation();
-  }, [activeTab]);
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      if (activeTab === 'doctors') {
+        const data = await getAllDoctors();
+        console.log('Doctors loaded:', data);
+        setDoctors(data);
+      } else {
+        const data = await getAllHospitals();
+        console.log('Hospitals loaded:', data);
+        setHospitals(data);
+      }
+    } catch (error) {
+      console.error('Error loading data:', error);
+      alert(`Error loading ${activeTab}: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const getUserLocation = () => {
     if (navigator.geolocation) {
@@ -55,25 +71,10 @@ const ConsultDoctor = () => {
     }
   };
 
-  const loadData = async () => {
-    setLoading(true);
-    try {
-      if (activeTab === 'doctors') {
-        const data = await getAllDoctors();
-        console.log('Doctors loaded:', data);
-        setDoctors(data);
-      } else {
-        const data = await getAllHospitals();
-        console.log('Hospitals loaded:', data);
-        setHospitals(data);
-      }
-    } catch (error) {
-      console.error('Error loading data:', error);
-      alert(`Error loading ${activeTab}: ${error.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    loadData();
+    getUserLocation();
+  }, [activeTab]);
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) {
@@ -144,13 +145,16 @@ const ConsultDoctor = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 p-8">
-      <div className="max-w-7xl mx-auto">
-        <h1 className="text-4xl font-bold text-gray-800 mb-2">Consult Healthcare Professionals</h1>
-        <p className="text-gray-600 mb-8">Find doctors and hospitals near you</p>
+    <div className="min-h-screen wellnest-app-bg p-8">
+      <div className="max-w-7xl mx-auto wellnest-content-layer">
+        <PageHeader
+          title="Consult Healthcare Professionals"
+          subtitle="Find doctors and hospitals near you."
+          icon="🧑‍⚕️"
+        />
 
         {/* Tabs */}
-        <div className="flex space-x-4 mb-6">
+        <div className="flex space-x-4 mb-6 wellnest-surface p-4">
           <button
             onClick={() => setActiveTab('doctors')}
             className={`px-6 py-3 rounded-lg font-semibold transition-all ${
@@ -174,7 +178,7 @@ const ConsultDoctor = () => {
         </div>
 
         {/* Search Bar */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-8">
+        <div className="wellnest-surface p-6 mb-8">
           <div className="flex gap-4">
             <input
               type="text"
@@ -214,7 +218,7 @@ const ConsultDoctor = () => {
         {!loading && activeTab === 'doctors' && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {doctors.map((doctor) => (
-              <div key={doctor.id} className="bg-white rounded-lg shadow-md p-6 hover:shadow-xl transition-shadow">
+              <div key={doctor.id} className="bg-white rounded-lg shadow-md p-6 hover:shadow-xl transition-shadow wellnest-emoji-card border border-slate-100">
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex-1">
                     <h3 className="text-xl font-bold text-gray-800">{doctor.name}</h3>
@@ -239,7 +243,7 @@ const ConsultDoctor = () => {
                     <span className="font-semibold">Location:</span> {doctor.city}, {doctor.state}
                   </p>
                   <p className="text-gray-600">
-                    <span className="font-semibold">Fee:</span> ${doctor.consultationFee}
+                    <span className="font-semibold">Fee:</span> ₹{doctor.consultationFee}
                   </p>
                   <p className="text-gray-600">
                     <span className="font-semibold">Available:</span> {doctor.availabilityDays}
@@ -269,7 +273,7 @@ const ConsultDoctor = () => {
         {!loading && activeTab === 'hospitals' && (
           <>
             {hospitals.length === 0 ? (
-              <div className="bg-white rounded-lg shadow-md p-12 text-center">
+              <div className="wellnest-surface p-12 text-center">
                 <p className="text-gray-600 text-lg">No hospitals found.</p>
                 <button 
                   onClick={loadData}
@@ -281,8 +285,8 @@ const ConsultDoctor = () => {
             ) : (
               <>
             {/* Hospital Map */}
-            <div className="mb-8">
-              <h2 className="text-2xl font-bold text-gray-800 mb-4">Hospital Locations Map</h2>
+            <div className="mb-8 wellnest-surface p-6">
+              <h2 className="text-2xl font-bold text-gray-800 mb-4 wellnest-section-title">🗺️ Hospital Locations Map</h2>
               <p className="text-sm text-gray-600 mb-2">Found {hospitals.length} hospitals</p>
               {hospitals.length > 0 && (
                 <HospitalMap 
@@ -303,10 +307,10 @@ const ConsultDoctor = () => {
             </div>
 
             {/* Hospital Cards */}
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">Available Hospitals</h2>
+            <h2 className="text-2xl font-bold text-gray-800 mb-4 wellnest-section-title">🏥 Available Hospitals</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {hospitals.map((hospital) => (
-              <div key={hospital.id} id={`hospital-${hospital.id}`} className="bg-white rounded-lg shadow-md p-6 hover:shadow-xl transition-all">
+              <div key={hospital.id} id={`hospital-${hospital.id}`} className="bg-white rounded-lg shadow-md p-6 hover:shadow-xl transition-all wellnest-emoji-card border border-slate-100">
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex-1">
                     <h3 className="text-xl font-bold text-gray-800">{hospital.name}</h3>

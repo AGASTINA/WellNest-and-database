@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getUserHealthMetrics, recordHealthMetrics, getLatestHealthMetrics } from '../utils/medicalApi';
+import PageHeader from '../components/PageHeader';
 
 const HealthMetrics = () => {
   const [metrics, setMetrics] = useState([]);
@@ -97,31 +98,32 @@ const HealthMetrics = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 p-8">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-8">
-          <div>
-            <h1 className="text-4xl font-bold text-gray-800 mb-2">Health Metrics</h1>
-            <p className="text-gray-600">Track your vital signs and health indicators</p>
-          </div>
-          <button
-            onClick={() => setShowModal(true)}
-            className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center"
-          >
-            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Record Metrics
-          </button>
-        </div>
+    <div className="min-h-screen wellnest-app-bg p-8">
+      <div className="max-w-7xl mx-auto wellnest-content-layer">
+        <PageHeader
+          title="Health Metrics"
+          subtitle="Track your vital signs and health indicators."
+          icon="🩺"
+          action={
+            <button
+              onClick={() => setShowModal(true)}
+              className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+            >
+              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Record Metrics
+            </button>
+          }
+        />
 
         {/* Latest Metrics Summary */}
         {latestMetric && (
-          <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-            <h2 className="text-xl font-bold text-gray-800 mb-4">Latest Reading</h2>
+          <div className="wellnest-surface p-6 mb-8">
+            <h2 className="text-xl font-bold text-gray-800 mb-4 wellnest-section-title">📊 Latest Reading</h2>
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
               {latestMetric.bloodPressureSystolic && latestMetric.bloodPressureDiastolic && (
-                <div className="bg-red-50 p-4 rounded-lg">
+                <div className="bg-red-50 p-4 rounded-lg wellnest-emoji-card">
                   <p className="text-sm text-gray-600">Blood Pressure</p>
                   <p className="text-2xl font-bold text-red-600">
                     {latestMetric.bloodPressureSystolic}/{latestMetric.bloodPressureDiastolic}
@@ -130,35 +132,35 @@ const HealthMetrics = () => {
                 </div>
               )}
               {latestMetric.heartRate && (
-                <div className="bg-pink-50 p-4 rounded-lg">
+                <div className="bg-pink-50 p-4 rounded-lg wellnest-emoji-card">
                   <p className="text-sm text-gray-600">Heart Rate</p>
                   <p className="text-2xl font-bold text-pink-600">{latestMetric.heartRate}</p>
                   <p className="text-xs text-gray-500">bpm</p>
                 </div>
               )}
               {latestMetric.bloodSugar && (
-                <div className="bg-orange-50 p-4 rounded-lg">
+                <div className="bg-orange-50 p-4 rounded-lg wellnest-emoji-card">
                   <p className="text-sm text-gray-600">Blood Sugar</p>
                   <p className="text-2xl font-bold text-orange-600">{latestMetric.bloodSugar}</p>
                   <p className="text-xs text-gray-500">mg/dL</p>
                 </div>
               )}
               {latestMetric.oxygenSaturation && (
-                <div className="bg-blue-50 p-4 rounded-lg">
+                <div className="bg-blue-50 p-4 rounded-lg wellnest-emoji-card">
                   <p className="text-sm text-gray-600">Oxygen Sat.</p>
                   <p className="text-2xl font-bold text-blue-600">{latestMetric.oxygenSaturation}%</p>
                   <p className="text-xs text-gray-500">SpO2</p>
                 </div>
               )}
               {latestMetric.weight && (
-                <div className="bg-green-50 p-4 rounded-lg">
+                <div className="bg-green-50 p-4 rounded-lg wellnest-emoji-card">
                   <p className="text-sm text-gray-600">Weight</p>
                   <p className="text-2xl font-bold text-green-600">{latestMetric.weight}</p>
                   <p className="text-xs text-gray-500">kg</p>
                 </div>
               )}
               {latestMetric.bmi && (
-                <div className="bg-purple-50 p-4 rounded-lg">
+                <div className="bg-purple-50 p-4 rounded-lg wellnest-emoji-card">
                   <p className="text-sm text-gray-600">BMI</p>
                   <p className="text-2xl font-bold text-purple-600">{latestMetric.bmi.toFixed(1)}</p>
                   <p className="text-xs text-gray-500">index</p>
@@ -175,9 +177,9 @@ const HealthMetrics = () => {
           </div>
         ) : (
           <div className="space-y-4">
-            <h2 className="text-2xl font-bold text-gray-800">History</h2>
+            <h2 className="text-2xl font-bold text-gray-800 wellnest-section-title">🗂️ History</h2>
             {metrics.map((metric) => (
-              <div key={metric.id} className="bg-white rounded-lg shadow-md p-6">
+              <div key={metric.id} className="wellnest-surface p-6 wellnest-emoji-card">
                 <div className="flex justify-between items-start mb-4">
                   <div>
                     <p className="text-sm text-gray-500">
@@ -267,7 +269,7 @@ const HealthMetrics = () => {
             ))}
 
             {metrics.length === 0 && (
-              <div className="text-center py-12 bg-white rounded-lg">
+              <div className="text-center py-12 wellnest-surface">
                 <p className="text-gray-500">No health metrics recorded yet. Start tracking your health!</p>
               </div>
             )}

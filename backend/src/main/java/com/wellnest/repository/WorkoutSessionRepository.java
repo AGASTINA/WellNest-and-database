@@ -12,6 +12,8 @@ import java.util.List;
 public interface WorkoutSessionRepository extends JpaRepository<WorkoutSession, Long> {
     
     List<WorkoutSession> findByUserIdOrderByCompletedAtDesc(Long userId);
+
+    java.util.Optional<WorkoutSession> findByIdAndUserId(Long id, Long userId);
     
     List<WorkoutSession> findByUserIdAndCompletedAtBetween(
         Long userId, 

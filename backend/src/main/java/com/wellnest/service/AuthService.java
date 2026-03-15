@@ -33,6 +33,19 @@ public class AuthService {
     private String googleClientId;
 
     private final RestTemplate restTemplate = new RestTemplate();
+
+    private UserDto buildUserDto(User user) {
+        UserDto userDto = new UserDto(user.getId(), user.getName(), user.getEmail(), user.getRole());
+        userDto.setFirstName(user.getFirstName());
+        userDto.setLastName(user.getLastName());
+        userDto.setWeight(user.getWeight());
+        userDto.setHeight(user.getHeight());
+        userDto.setAge(user.getAge());
+        userDto.setGender(user.getGender());
+        userDto.setPhoneNumber(user.getPhoneNumber());
+        userDto.setFitnessGoal(user.getFitnessGoal());
+        return userDto;
+    }
     
     @Transactional
     public AuthResponse register(RegisterRequest request) {
@@ -55,8 +68,7 @@ public class AuthService {
         // Generate JWT token
         String token = jwtService.generateToken(user.getEmail(), user.getId());
         
-        // Create UserDto
-        UserDto userDto = new UserDto(user.getId(), user.getName(), user.getEmail(), user.getRole());
+        UserDto userDto = buildUserDto(user);
         
         return new AuthResponse("Registration successful", token, userDto);
     }
@@ -77,8 +89,7 @@ public class AuthService {
         // Generate JWT token
         String token = jwtService.generateToken(user.getEmail(), user.getId());
         
-        // Create UserDto
-        UserDto userDto = new UserDto(user.getId(), user.getName(), user.getEmail(), user.getRole());
+        UserDto userDto = buildUserDto(user);
         
         return new AuthResponse("Login successful", token, userDto);
     }
@@ -168,7 +179,7 @@ public class AuthService {
                 });
 
         String token = jwtService.generateToken(user.getEmail(), user.getId());
-        UserDto userDto = new UserDto(user.getId(), user.getName(), user.getEmail(), user.getRole());
+        UserDto userDto = buildUserDto(user);
         return new AuthResponse("Google login successful", token, userDto);
     }
     

@@ -38,6 +38,7 @@ public class User {
     private Double weight;
     private Double height;
     private Integer age;
+    private String gender;
 
     @Column(name = "phone_number")
     private String phoneNumber;

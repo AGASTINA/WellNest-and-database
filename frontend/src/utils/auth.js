@@ -18,4 +18,16 @@ export const clearAuthSession = () => {
   localStorage.removeItem('user');
 };
 
-export const getToken = () => localStorage.getItem('token');
+export const getToken = () => {
+  const token = localStorage.getItem('token');
+  if (!token || token === 'null' || token === 'undefined') {
+    return null;
+  }
+
+  // Basic JWT shape validation: header.payload.signature
+  if (token.split('.').length !== 3) {
+    return null;
+  }
+
+  return token;
+};

@@ -13,7 +13,7 @@ const WorkoutPlanCard = ({ workout, onStartWorkout, onEdit, onDelete }) => {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200 overflow-hidden">
+    <div className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200 overflow-hidden wellnest-emoji-card">
       <div className="bg-gradient-to-r from-primary-500 to-primary-600 h-24 flex items-center justify-center">
         <span className="text-4xl">💪</span>
       </div>

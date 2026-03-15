@@ -17,6 +17,7 @@ public class UserDto {
     private Double weight;
     private Double height;
     private Integer age;
+    private String gender;
     private String phoneNumber;
     private String fitnessGoal;
 

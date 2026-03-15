@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { logWorkoutSession } from '../utils/calorieApi';
+import workoutApi from '../utils/workoutApi';
 
 const WorkoutPlanExecutionModal = ({ isOpen, onClose, workout, onWorkoutComplete }) => {
   const [elapsedTime, setElapsedTime] = useState(0);
@@ -89,6 +90,7 @@ const WorkoutPlanExecutionModal = ({ isOpen, onClose, workout, onWorkoutComplete
     setIsSaving(true);
     try {
       const workoutData = {
+        workoutPlanId: workout?.id || null,
         workoutName: workout?.name || '5x5 Workout A',
         workoutType: 'Weightlifting',
         durationMinutes: durationMinutes,
@@ -100,6 +102,11 @@ const WorkoutPlanExecutionModal = ({ isOpen, onClose, workout, onWorkoutComplete
       
       const response = await logWorkoutSession(workoutData);
       console.log('Workout saved successfully:', response);
+
+      if (workout?.id) {
+        await workoutApi.completeWorkoutPlan(workout.id);
+        console.log('Workout plan completion updated for plan:', workout.id);
+      }
 
       // Call callback to refresh dashboard
       if (onWorkoutComplete) {

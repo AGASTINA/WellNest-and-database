@@ -51,4 +51,26 @@ public class WorkoutSessionController {
         List<WorkoutSessionDto> sessions = workoutSessionService.getSessionsByDateRange(userId, startDate, endDate);
         return ResponseEntity.ok(sessions);
     }
+
+    @PutMapping("/{id}")
+    @SuppressWarnings("null")
+    public ResponseEntity<WorkoutSessionDto> updateWorkoutSession(
+            @PathVariable Long id,
+            @RequestBody WorkoutSessionDto sessionDto) {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        Long userId = userService.getUserProfile(email).getId();
+
+        WorkoutSessionDto updated = workoutSessionService.updateWorkoutSession(userId, id, sessionDto);
+        return ResponseEntity.ok(updated);
+    }
+
+    @DeleteMapping("/{id}")
+    @SuppressWarnings("null")
+    public ResponseEntity<Void> deleteWorkoutSession(@PathVariable Long id) {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        Long userId = userService.getUserProfile(email).getId();
+
+        workoutSessionService.deleteWorkoutSession(userId, id);
+        return ResponseEntity.noContent().build();
+    }
 }

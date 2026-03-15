@@ -1,6 +1,7 @@
--- Insert test user with ID 1
+-- Insert test user with ID 1 (only if not exists - H2 syntax)
 INSERT INTO users (id, name, email, password, role, auth_provider, created_at, updated_at)
-VALUES (1, 'Test User', 'user@example.com', '$2a$10$slYQmyNdGzin7olVN3p5Be7DK5wuhUmyCQP2jUZbHxubVxvjQFN7m', 'USER', 'LOCAL', NOW(), NOW());
+SELECT 1, 'Test User', 'user@example.com', '$2a$10$slYQmyNdGzin7olVN3p5Be7DK5wuhUmyCQP2jUZbHxubVxvjQFN7m', 'USER', 'LOCAL', NOW(), NOW()
+WHERE NOT EXISTS (SELECT 1 FROM users WHERE id = 1);
 
 -- Password: password123 (BCrypt encoded)
 
@@ -48,8 +49,10 @@ ALTER TABLE medical_records ALTER COLUMN id RESTART WITH 100;
 ALTER TABLE health_metrics ALTER COLUMN id RESTART WITH 100;
 ALTER TABLE consultations ALTER COLUMN id RESTART WITH 100;
 ALTER TABLE workout_plans ALTER COLUMN id RESTART WITH 100;
+ALTER TABLE workout_sessions ALTER COLUMN id RESTART WITH 100;
 ALTER TABLE fitness_goals ALTER COLUMN id RESTART WITH 100;
 ALTER TABLE meals ALTER COLUMN id RESTART WITH 100;
+ALTER TABLE sleep_logs ALTER COLUMN id RESTART WITH 100;
 ALTER TABLE memberships ALTER COLUMN id RESTART WITH 100;
 
 -- Insert sample fitness goals
@@ -66,7 +69,62 @@ VALUES
 (3, 1, 'SNACK', 'Samosa (2 pieces)', 'INDIAN', 320, 6, 38, 16, 4, 'Potato, Peas, Flour, Spices', '2 medium samosas', true, true, NOW(), 'Evening snack with chai', NOW()),
 (4, 1, 'DINNER', 'Palak Paneer', 'NORTH_INDIAN', 280, 14, 12, 20, 5, 'Spinach, Paneer, Cream, Spices', '1 serving (300g)', true, false, NOW(), 'Served with 2 rotis', NOW()),
 (5, 1, 'BREAKFAST', 'Idli Sambar', 'SOUTH_INDIAN', 250, 8, 48, 3, 6, 'Rice, Urad Dal, Lentils, Vegetables, Spices', '3 idlis with sambar', true, true, NOW() - INTERVAL '1' DAY, 'Light and healthy breakfast', NOW() - INTERVAL '1' DAY),
-(6, 1, 'LUNCH', 'Rajma Chawal', 'NORTH_INDIAN', 480, 16, 72, 12, 14, 'Kidney Beans, Rice, Tomatoes, Spices', '1 serving rice + kidney bean curry', true, true, NOW() - INTERVAL '1' DAY, 'Protein-rich vegetarian meal', NOW() - INTERVAL '1' DAY);
+(6, 1, 'LUNCH', 'Rajma Chawal', 'NORTH_INDIAN', 480, 16, 72, 12, 14, 'Kidney Beans, Rice, Tomatoes, Spices', '1 serving rice + kidney bean curry', true, true, NOW() - INTERVAL '1' DAY, 'Protein-rich vegetarian meal', NOW() - INTERVAL '1' DAY),
+(7, 1, 'DINNER', 'Grilled Fish with Veggies', 'CONTINENTAL', 430, 34, 18, 20, 7, 'Fish fillet, olive oil, mixed vegetables, herbs', '1 plate', false, false, NOW() - INTERVAL '10' DAY, 'High protein dinner', NOW() - INTERVAL '10' DAY),
+(8, 1, 'LUNCH', 'Paneer Tikka Bowl', 'INDIAN', 510, 24, 42, 28, 8, 'Paneer, millet, salad, mint chutney', '1 bowl', true, false, NOW() - INTERVAL '21' DAY, 'Post-workout meal', NOW() - INTERVAL '21' DAY),
+(9, 1, 'BREAKFAST', 'Oats Upma', 'INDIAN', 320, 11, 49, 8, 9, 'Oats, vegetables, mustard, curry leaves', '1 bowl', true, true, NOW() - INTERVAL '36' DAY, 'Fiber-rich breakfast', NOW() - INTERVAL '36' DAY),
+(10, 1, 'DINNER', 'Dal Khichdi', 'INDIAN', 390, 14, 61, 10, 8, 'Rice, moong dal, ghee, cumin, turmeric', '1 bowl', true, true, NOW() - INTERVAL '49' DAY, 'Light recovery meal', NOW() - INTERVAL '49' DAY),
+(11, 1, 'LUNCH', 'Chicken Curry + Brown Rice', 'INDIAN', 560, 31, 52, 22, 6, 'Chicken curry, brown rice, spices', '1 plate', false, false, NOW() - INTERVAL '63' DAY, 'Balanced macros', NOW() - INTERVAL '63' DAY),
+(12, 1, 'BREAKFAST', 'Poha with Peanuts', 'INDIAN', 300, 9, 47, 9, 5, 'Flattened rice, peanuts, onions, lemon', '1 serving', true, true, NOW() - INTERVAL '78' DAY, 'Quick breakfast', NOW() - INTERVAL '78' DAY),
+(13, 1, 'DINNER', 'Tofu Stir Fry', 'ASIAN', 410, 23, 29, 21, 7, 'Tofu, broccoli, bell peppers, sesame', '1 bowl', true, true, NOW() - INTERVAL '92' DAY, 'Plant protein meal', NOW() - INTERVAL '92' DAY),
+(14, 1, 'LUNCH', 'Sambar Rice', 'SOUTH_INDIAN', 460, 13, 73, 12, 10, 'Rice, lentils, vegetables, tamarind', '1 plate', true, true, NOW() - INTERVAL '108' DAY, 'Comfort lunch', NOW() - INTERVAL '108' DAY),
+(15, 1, 'SNACK', 'Sprouts Chaat', 'INDIAN', 220, 13, 28, 6, 8, 'Moong sprouts, onion, tomato, lemon', '1 bowl', true, true, NOW() - INTERVAL '121' DAY, 'Evening protein snack', NOW() - INTERVAL '121' DAY),
+(16, 1, 'DINNER', 'Egg Bhurji + Chapati', 'INDIAN', 470, 26, 39, 22, 5, 'Eggs, onions, tomatoes, spices, chapati', '2 chapatis + bhurji', false, false, NOW() - INTERVAL '138' DAY, 'Hearty dinner', NOW() - INTERVAL '138' DAY),
+(17, 1, 'LUNCH', 'Vegetable Pulao + Raita', 'INDIAN', 520, 12, 76, 17, 6, 'Basmati rice, vegetables, curd', '1 serving', true, false, NOW() - INTERVAL '154' DAY, 'Weekend lunch', NOW() - INTERVAL '154' DAY),
+(18, 1, 'BREAKFAST', 'Ragi Dosa', 'SOUTH_INDIAN', 310, 10, 46, 9, 7, 'Ragi flour, urad dal, spices', '2 dosas', true, true, NOW() - INTERVAL '169' DAY, 'Calcium-rich breakfast', NOW() - INTERVAL '169' DAY);
+
+-- Insert sample workout sessions across several months for graph presentation
+INSERT INTO workout_sessions (id, user_id, workout_plan_id, workout_name, workout_type, duration_minutes, calories_burned, completed_at, notes, created_at)
+VALUES
+(1, 1, null, 'Morning Walk', 'Walking', 30, 120, NOW() - INTERVAL '2' DAY, 'Easy pace', NOW() - INTERVAL '2' DAY),
+(2, 1, null, 'Evening Run', 'Running', 35, 300, NOW() - INTERVAL '1' DAY, 'Interval run', NOW() - INTERVAL '1' DAY),
+(3, 1, null, 'Yoga Flow', 'Yoga', 40, 150, NOW() - INTERVAL '4' DAY, 'Mobility focus', NOW() - INTERVAL '4' DAY),
+(4, 1, null, 'Cycling Session', 'Cycling', 45, 280, NOW() - INTERVAL '7' DAY, 'Outdoor route', NOW() - INTERVAL '7' DAY),
+(5, 1, null, 'Strength Circuit', 'Weightlifting', 50, 320, NOW() - INTERVAL '12' DAY, 'Upper body day', NOW() - INTERVAL '12' DAY),
+(6, 1, null, 'Brisk Walk', 'Walking', 38, 160, NOW() - INTERVAL '18' DAY, 'Post-lunch walk', NOW() - INTERVAL '18' DAY),
+(7, 1, null, 'Tempo Run', 'Running', 42, 360, NOW() - INTERVAL '25' DAY, 'Steady pace', NOW() - INTERVAL '25' DAY),
+(8, 1, null, 'Pool Training', 'Swimming', 40, 290, NOW() - INTERVAL '33' DAY, 'Lap training', NOW() - INTERVAL '33' DAY),
+(9, 1, null, 'HIIT Blast', 'Weightlifting', 32, 275, NOW() - INTERVAL '46' DAY, 'Short intense workout', NOW() - INTERVAL '46' DAY),
+(10, 1, null, 'Recovery Yoga', 'Yoga', 35, 130, NOW() - INTERVAL '58' DAY, 'Stretch and breath', NOW() - INTERVAL '58' DAY),
+(11, 1, null, 'Cardio Run', 'Running', 48, 390, NOW() - INTERVAL '72' DAY, 'Long run', NOW() - INTERVAL '72' DAY),
+(12, 1, null, 'Cycling Intervals', 'Cycling', 50, 340, NOW() - INTERVAL '85' DAY, 'Mixed intervals', NOW() - INTERVAL '85' DAY),
+(13, 1, null, 'Power Walk', 'Walking', 45, 190, NOW() - INTERVAL '99' DAY, 'Incline walk', NOW() - INTERVAL '99' DAY),
+(14, 1, null, 'Strength Day', 'Weightlifting', 55, 360, NOW() - INTERVAL '113' DAY, 'Legs and core', NOW() - INTERVAL '113' DAY),
+(15, 1, null, 'Sunrise Swim', 'Swimming', 42, 300, NOW() - INTERVAL '127' DAY, 'Technique drills', NOW() - INTERVAL '127' DAY),
+(16, 1, null, 'Easy Jog', 'Running', 30, 220, NOW() - INTERVAL '141' DAY, 'Recovery run', NOW() - INTERVAL '141' DAY),
+(17, 1, null, 'Mobility Yoga', 'Yoga', 38, 145, NOW() - INTERVAL '156' DAY, 'Hip mobility', NOW() - INTERVAL '156' DAY),
+(18, 1, null, 'Long Ride', 'Cycling', 60, 430, NOW() - INTERVAL '173' DAY, 'Weekend endurance', NOW() - INTERVAL '173' DAY);
+
+-- Insert sleep + hydration logs for both recent week and historical trend
+INSERT INTO sleep_logs (id, user_id, sleep_date, bed_time, wake_time, hours_slept, sleep_quality, notes, water_glasses, created_at)
+VALUES
+(1, 1, CURRENT_DATE, TIME '22:45:00', TIME '06:30:00', 7.75, 4, 'Felt fresh in the morning', 9, NOW()),
+(2, 1, CURRENT_DATE - INTERVAL '1' DAY, TIME '23:10:00', TIME '06:40:00', 7.50, 4, 'Slept well', 8, NOW() - INTERVAL '1' DAY),
+(3, 1, CURRENT_DATE - INTERVAL '2' DAY, TIME '22:30:00', TIME '06:15:00', 7.75, 5, 'Excellent sleep', 10, NOW() - INTERVAL '2' DAY),
+(4, 1, CURRENT_DATE - INTERVAL '3' DAY, TIME '23:30:00', TIME '06:20:00', 6.83, 3, 'Woke up once at night', 7, NOW() - INTERVAL '3' DAY),
+(5, 1, CURRENT_DATE - INTERVAL '4' DAY, TIME '22:55:00', TIME '06:35:00', 7.67, 4, 'Good sleep quality', 9, NOW() - INTERVAL '4' DAY),
+(6, 1, CURRENT_DATE - INTERVAL '5' DAY, TIME '23:20:00', TIME '06:25:00', 7.08, 3, 'Late caffeine intake', 6, NOW() - INTERVAL '5' DAY),
+(7, 1, CURRENT_DATE - INTERVAL '6' DAY, TIME '22:40:00', TIME '06:20:00', 7.67, 4, 'Steady hydration helped', 8, NOW() - INTERVAL '6' DAY),
+(8, 1, CURRENT_DATE - INTERVAL '15' DAY, TIME '23:00:00', TIME '06:30:00', 7.50, 4, 'Normal day', 8, NOW() - INTERVAL '15' DAY),
+(9, 1, CURRENT_DATE - INTERVAL '30' DAY, TIME '22:35:00', TIME '06:05:00', 7.50, 4, 'Consistent schedule', 9, NOW() - INTERVAL '30' DAY),
+(10, 1, CURRENT_DATE - INTERVAL '45' DAY, TIME '23:15:00', TIME '06:00:00', 6.75, 3, 'Work stress', 7, NOW() - INTERVAL '45' DAY),
+(11, 1, CURRENT_DATE - INTERVAL '60' DAY, TIME '22:20:00', TIME '06:10:00', 7.83, 5, 'Very restful', 10, NOW() - INTERVAL '60' DAY),
+(12, 1, CURRENT_DATE - INTERVAL '75' DAY, TIME '23:05:00', TIME '06:25:00', 7.33, 4, 'Improving pattern', 8, NOW() - INTERVAL '75' DAY),
+(13, 1, CURRENT_DATE - INTERVAL '90' DAY, TIME '22:50:00', TIME '06:15:00', 7.42, 4, 'Good night', 9, NOW() - INTERVAL '90' DAY),
+(14, 1, CURRENT_DATE - INTERVAL '110' DAY, TIME '23:25:00', TIME '06:05:00', 6.67, 3, 'Late bedtime', 6, NOW() - INTERVAL '110' DAY),
+(15, 1, CURRENT_DATE - INTERVAL '130' DAY, TIME '22:30:00', TIME '06:20:00', 7.83, 5, 'Excellent recovery', 10, NOW() - INTERVAL '130' DAY),
+(16, 1, CURRENT_DATE - INTERVAL '150' DAY, TIME '23:00:00', TIME '06:10:00', 7.17, 4, 'Average sleep', 8, NOW() - INTERVAL '150' DAY),
+(17, 1, CURRENT_DATE - INTERVAL '170' DAY, TIME '22:40:00', TIME '06:00:00', 7.33, 4, 'Consistent hydration', 9, NOW() - INTERVAL '170' DAY);
 
 -- Insert sample membership (FREE plan for test user)
 INSERT INTO memberships (id, user_id, plan_type, billing_cycle, price, start_date, end_date, status, payment_method, payment_status, transaction_id, auto_renewal, created_at, updated_at)

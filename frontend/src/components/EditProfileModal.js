@@ -9,6 +9,7 @@ const EditProfileModal = ({ isOpen, onClose, onUpdate }) => {
     weight: '',
     height: '',
     age: '',
+    gender: '',
     fitnessGoal: 'Stay Healthy'
   });
   const [loading, setLoading] = useState(false);
@@ -16,9 +17,6 @@ const EditProfileModal = ({ isOpen, onClose, onUpdate }) => {
 
   useEffect(() => {
     if (isOpen) {
-      const user = getStoredUser();
-      // Fetch latest profile or use stored user if available
-      // Ideally fetch from API to get weight/height if not in local storage yet
       fetchProfile();
     }
   }, [isOpen]);
@@ -26,7 +24,7 @@ const EditProfileModal = ({ isOpen, onClose, onUpdate }) => {
   const fetchProfile = async () => {
     try {
       const token = getToken();
-      const response = await fetch('http://localhost:8081/api/user/profile', {
+      const response = await fetch('http://localhost:3000/api/user/profile', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -40,6 +38,7 @@ const EditProfileModal = ({ isOpen, onClose, onUpdate }) => {
           weight: data.weight || '',
           height: data.height || '',
           age: data.age || '',
+          gender: data.gender || '',
           fitnessGoal: data.fitnessGoal || 'Stay Healthy'
         });
       }
@@ -63,7 +62,7 @@ const EditProfileModal = ({ isOpen, onClose, onUpdate }) => {
 
     try {
       const token = getToken();
-      const response = await fetch('http://localhost:8081/api/user/profile', {
+      const response = await fetch('http://localhost:3000/api/user/profile', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -145,7 +144,7 @@ const EditProfileModal = ({ isOpen, onClose, onUpdate }) => {
             />
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Age</label>
               <input
@@ -155,6 +154,20 @@ const EditProfileModal = ({ isOpen, onClose, onUpdate }) => {
                 onChange={handleChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
               />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
+              <select
+                name="gender"
+                value={formData.gender}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+              >
+                <option value="">Prefer not to say</option>
+                <option value="Female">Female</option>
+                <option value="Male">Male</option>
+                <option value="Other">Other</option>
+              </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Weight (kg)</label>

@@ -1,5 +1,96 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import confetti from 'canvas-confetti';
 import { getUserGoals, createGoal, updateGoal, deleteGoal } from '../utils/fitnessGoalsApi';
+import { getLatestHealthMetrics, recordHealthMetrics, getHealthMetricsByDateRange } from '../utils/medicalApi';
+import { getSleepByDate, getUserSleepLogs } from '../utils/sleepApi';
+import { getCalorieSummary, getUserSessions } from '../utils/calorieApi';
+import PageHeader from '../components/PageHeader';
+
+const asNumber = (...values) => {
+    for (const value of values) {
+        if (value === null || value === undefined || value === '') continue;
+        const num = Number(value);
+        if (Number.isFinite(num)) return num;
+    }
+    return 0;
+};
+
+const isSameDay = (value, yyyyMmDd) => {
+    if (!value) return false;
+
+    const raw = String(value);
+    // Direct string prefix match (covers "2026-03-14T..." from backend)
+    if (raw.startsWith(yyyyMmDd)) return true;
+
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return false;
+    // Compare using LOCAL date parts to avoid UTC day-boundary shift (important for IST +5:30)
+    const y = parsed.getFullYear();
+    const m = String(parsed.getMonth() + 1).padStart(2, '0');
+    const d = String(parsed.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}` === yyyyMmDd;
+};
+
+const parseLocalDateFromYyyyMmDd = (value) => {
+    if (!value) return null;
+    const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!match) return null;
+    const [, y, m, d] = match;
+    return new Date(Number(y), Number(m) - 1, Number(d));
+};
+
+const statusLegend = [
+    { label: 'Good', tone: 'bg-green-100 text-green-700 border-green-200' },
+    { label: 'Average', tone: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
+    { label: 'Poor', tone: 'bg-red-100 text-red-700 border-red-200' }
+];
+
+const metricDefinitions = [
+    { key: 'Steps', icon: '👣', unit: 'steps', accent: 'from-emerald-500 to-green-500' },
+    { key: 'Sleep', icon: '😴', unit: 'hours', accent: 'from-indigo-500 to-violet-500' },
+    { key: 'Hydration', icon: '💧', unit: 'liters', accent: 'from-sky-500 to-cyan-500' },
+    { key: 'Workout', icon: '💪', unit: 'minutes', accent: 'from-orange-500 to-amber-500' }
+];
+
+const getSuggestedStepsFromBmi = (bmi) => {
+    if (!bmi || bmi <= 0) {
+        return {
+            target: 9000,
+            guidance: 'General baseline recommendation',
+            note: 'Track consistently for a week, then increase gradually if comfortable.'
+        };
+    }
+
+    if (bmi < 18.5) {
+        return {
+            target: 7500,
+            guidance: 'Underweight range (focus on balanced activity)',
+            note: 'Keep activity moderate and combine with nutrition support.'
+        };
+    }
+
+    if (bmi < 25) {
+        return {
+            target: 9000,
+            guidance: 'Healthy BMI range',
+            note: 'Maintain consistency between 8k-10k steps/day.'
+        };
+    }
+
+    if (bmi < 30) {
+        return {
+            target: 10500,
+            guidance: 'Overweight range (weight-management focus)',
+            note: 'Aim for 10k+ with gradual progression and rest days.'
+        };
+    }
+
+    return {
+        target: 8500,
+        guidance: 'Obesity range (start sustainable)',
+        note: 'Begin with steady daily movement and increase step target progressively.'
+    };
+};
 
 const FitnessGoals = () => {
     const [goals, setGoals] = useState([]);
@@ -15,12 +106,124 @@ const FitnessGoals = () => {
         notes: ''
     });
     const [editingGoal, setEditingGoal] = useState(null);
+    const [todayStats, setTodayStats] = useState({
+        steps: 0,
+        sleepHours: 0,
+        waterLiters: 0,
+        workoutMinutes: 0,
+        caloriesConsumed: 0,
+        bmi: 0
+    });
+    const [showDailyUpdate, setShowDailyUpdate] = useState(false);
+    const [dailyUpdate, setDailyUpdate] = useState({
+        stepsCount: '',
+        workoutDurationMinutes: ''
+    });
+    const [lastCelebrationKey, setLastCelebrationKey] = useState('');
 
-    useEffect(() => {
-        fetchGoals();
+    const fetchTodayStats = useCallback(async () => {
+        try {
+            // Use local date (not UTC) to avoid day-boundary mismatches for IST users
+            const now = new Date();
+            const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+            const todayStart = `${today}T00:00:00`;
+            const todayEnd = `${today}T23:59:59`;
+
+            const [healthResult, todayMetricsResult, sleepResult, sleepLogsResult, sessionsResult, caloriesResult] = await Promise.allSettled([
+                getLatestHealthMetrics(),
+                getHealthMetricsByDateRange(todayStart, todayEnd),
+                getSleepByDate(today),
+                getUserSleepLogs(),
+                getUserSessions(),
+                getCalorieSummary(today)
+            ]);
+
+            const health = healthResult.status === 'fulfilled' ? healthResult.value : null;
+            // All health metric records saved today — use highest steps/workout from these
+            const todayMetrics = todayMetricsResult.status === 'fulfilled' && Array.isArray(todayMetricsResult.value)
+                ? todayMetricsResult.value
+                : [];
+            const sleepLog = sleepResult.status === 'fulfilled' ? sleepResult.value : null;
+            const sleepLogs = sleepLogsResult.status === 'fulfilled' && Array.isArray(sleepLogsResult.value)
+                ? sleepLogsResult.value
+                : [];
+            const sessions = sessionsResult.status === 'fulfilled' && Array.isArray(sessionsResult.value)
+                ? sessionsResult.value
+                : [];
+            const calorieSummary = caloriesResult.status === 'fulfilled' ? caloriesResult.value : null;
+
+            // Best steps from today's records (covers multiple entries in same day)
+            const todayBestSteps = todayMetrics.reduce(
+                (max, m) => Math.max(max, asNumber(m.stepsCount, m.stepCount, m.steps)),
+                0
+            );
+            const steps = todayBestSteps > 0
+                ? todayBestSteps
+                : asNumber(health?.stepsCount, health?.stepCount, health?.steps_count, health?.steps, health?.stepsTaken);
+
+            // Best workout minutes from today's health metric records
+            const todayHealthWorkoutMinutes = todayMetrics.reduce(
+                (max, m) => Math.max(max, asNumber(m.workoutDurationMinutes, m.workoutMinutes)),
+                0
+            );
+
+            const workoutMinutesFromHealth = Math.max(
+                todayHealthWorkoutMinutes,
+                asNumber(health?.workoutDurationMinutes, health?.workout_duration_minutes, health?.workoutMinutes, health?.durationMinutes)
+            );
+
+            const todayDate = parseLocalDateFromYyyyMmDd(today);
+            const recentSleepLog = sleepLogs.find((log) => {
+                const logDate = parseLocalDateFromYyyyMmDd(log?.sleepDate);
+                if (!todayDate || !logDate) return false;
+                const dayDiff = Math.round((todayDate.getTime() - logDate.getTime()) / (24 * 60 * 60 * 1000));
+                return dayDiff >= 0 && dayDiff <= 2;
+            });
+
+            const effectiveSleepLog = sleepLog
+                || sleepLogs.find((log) => isSameDay(log?.sleepDate, today))
+                || recentSleepLog
+                || sleepLogs[0]
+                || null;
+
+            const sleepHours = asNumber(effectiveSleepLog?.hoursSlept, effectiveSleepLog?.hours_slept);
+            const waterGlasses = asNumber(effectiveSleepLog?.waterGlasses, effectiveSleepLog?.water_glasses);
+            const waterLiters = waterGlasses * 0.25;
+
+            const todaysWorkoutMinutes = sessions
+                .filter((session) => {
+                    const dateValue = session?.completedAt || session?.createdAt || session?.sessionDate;
+                    return isSameDay(dateValue, today);
+                })
+                .reduce(
+                    (sum, session) =>
+                        sum + asNumber(session?.durationMinutes, session?.duration, session?.workoutDurationMinutes),
+                    0
+                );
+
+            const workoutMinutes = Math.max(workoutMinutesFromHealth, todaysWorkoutMinutes);
+
+            const weight = asNumber(health?.weight);
+            const heightCm = asNumber(health?.height);
+            const derivedBmi = (weight > 0 && heightCm > 0)
+                ? (weight / Math.pow(heightCm / 100, 2))
+                : 0;
+            const bmi = asNumber(health?.bmi, derivedBmi);
+
+            setTodayStats({
+                steps,
+                sleepHours,
+                waterLiters,
+                workoutMinutes,
+                caloriesConsumed: asNumber(calorieSummary?.caloriesConsumed),
+                bmi
+            });
+        } catch (error) {
+            console.error('Error fetching today stats:', error);
+        }
     }, []);
 
-    const fetchGoals = async () => {
+    const fetchGoals = useCallback(async () => {
         try {
             const data = await getUserGoals();
             setGoals(data);
@@ -29,7 +232,12 @@ const FitnessGoals = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
+
+    useEffect(() => {
+        fetchGoals();
+        fetchTodayStats();
+    }, [fetchGoals, fetchTodayStats]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -94,6 +302,35 @@ const FitnessGoals = () => {
         }
     };
 
+    const handleDailyUpdateSubmit = async (e) => {
+        e.preventDefault();
+        try {
+            const stepsCount = dailyUpdate.stepsCount === '' ? null : Math.max(0, parseInt(dailyUpdate.stepsCount, 10) || 0);
+            const workoutDurationMinutes = dailyUpdate.workoutDurationMinutes === ''
+                ? null
+                : Math.max(0, parseInt(dailyUpdate.workoutDurationMinutes, 10) || 0);
+
+            if (stepsCount === null && workoutDurationMinutes === null) {
+                alert('Please enter steps or workout minutes to update.');
+                return;
+            }
+
+            await recordHealthMetrics({
+                stepsCount,
+                workoutDurationMinutes,
+                recordedAt: new Date().toISOString(),
+                notes: 'Quick activity update from Fitness Goals'
+            });
+
+            setShowDailyUpdate(false);
+            setDailyUpdate({ stepsCount: '', workoutDurationMinutes: '' });
+            await fetchTodayStats();
+            alert('Today\'s activity updated successfully!');
+        } catch (error) {
+            alert('Failed to update activity: ' + error.message);
+        }
+    };
+
     const getGoalTypeLabel = (type) => {
         const labels = {
             'WEIGHT_LOSS': 'Weight Loss',
@@ -115,38 +352,383 @@ const FitnessGoals = () => {
         return colors[status] || 'bg-gray-100 text-gray-800';
     };
 
+    const getMetricState = (value, target) => {
+        if (!target || target <= 0) return { label: 'Average', color: 'text-yellow-700 bg-yellow-100', bar: 'bg-yellow-500' };
+        const ratio = value / target;
+        if (ratio >= 1) return { label: 'Good', color: 'text-green-700 bg-green-100', bar: 'bg-green-500' };
+        if (ratio >= 0.6) return { label: 'Average', color: 'text-yellow-700 bg-yellow-100', bar: 'bg-yellow-500' };
+        return { label: 'Poor', color: 'text-red-700 bg-red-100', bar: 'bg-red-500' };
+    };
+
+    const getDailyMetricState = (metric, value, target) => {
+        switch (metric) {
+            case 'sleep': {
+                if (value >= 7) return { label: 'Good', color: 'text-green-700 bg-green-100', bar: 'bg-green-500' };
+                if (value >= 6) return { label: 'Average', color: 'text-yellow-700 bg-yellow-100', bar: 'bg-yellow-500' };
+                return { label: 'Poor', color: 'text-red-700 bg-red-100', bar: 'bg-red-500' };
+            }
+            case 'hydration': {
+                if (value >= 2) return { label: 'Good', color: 'text-green-700 bg-green-100', bar: 'bg-green-500' };
+                if (value >= 1) return { label: 'Average', color: 'text-yellow-700 bg-yellow-100', bar: 'bg-yellow-500' };
+                return { label: 'Poor', color: 'text-red-700 bg-red-100', bar: 'bg-red-500' };
+            }
+            case 'steps': {
+                if (!target || target <= 0) return { label: 'Average', color: 'text-yellow-700 bg-yellow-100', bar: 'bg-yellow-500' };
+                const ratio = value / target;
+                if (ratio >= 1) return { label: 'Good', color: 'text-green-700 bg-green-100', bar: 'bg-green-500' };
+                if (ratio >= 0.6) return { label: 'Average', color: 'text-yellow-700 bg-yellow-100', bar: 'bg-yellow-500' };
+                return { label: 'Poor', color: 'text-red-700 bg-red-100', bar: 'bg-red-500' };
+            }
+            case 'workout': {
+                if (!target || target <= 0) return { label: 'Average', color: 'text-yellow-700 bg-yellow-100', bar: 'bg-yellow-500' };
+                const ratio = value / target;
+                if (ratio >= 1) return { label: 'Good', color: 'text-green-700 bg-green-100', bar: 'bg-green-500' };
+                if (ratio >= 0.5) return { label: 'Average', color: 'text-yellow-700 bg-yellow-100', bar: 'bg-yellow-500' };
+                return { label: 'Poor', color: 'text-red-700 bg-red-100', bar: 'bg-red-500' };
+            }
+            default:
+                return getMetricState(value, target);
+        }
+    };
+
+    const getGoalProgress = (goal) => {
+        const hasLiveDailyTarget = Boolean(goal.targetSteps || goal.targetWorkoutMinutes || goal.targetCalories);
+
+        if (!hasLiveDailyTarget && goal.progressPercentage !== null && goal.progressPercentage !== undefined) {
+            const fallbackStatus = getMetricState(goal.progressPercentage, 100);
+            return {
+                percentage: Math.max(0, Math.min(goal.progressPercentage, 100)),
+                currentText: `${goal.progressPercentage.toFixed(1)}% complete`,
+                status: fallbackStatus,
+                targetText: null
+            };
+        }
+
+        if (goal.targetSteps) {
+            const percentage = Math.max(0, Math.min((todayStats.steps / goal.targetSteps) * 100, 100));
+            return {
+                percentage,
+                currentText: `${todayStats.steps.toLocaleString()} / ${goal.targetSteps.toLocaleString()} steps`,
+                status: getDailyMetricState('steps', todayStats.steps, goal.targetSteps),
+                targetText: 'Daily Steps Goal'
+            };
+        }
+
+        if (goal.targetWorkoutMinutes) {
+            const percentage = Math.max(0, Math.min((todayStats.workoutMinutes / goal.targetWorkoutMinutes) * 100, 100));
+            return {
+                percentage,
+                currentText: `${todayStats.workoutMinutes} / ${goal.targetWorkoutMinutes} min`,
+                status: getDailyMetricState('workout', todayStats.workoutMinutes, goal.targetWorkoutMinutes),
+                targetText: 'Daily Workout Goal'
+            };
+        }
+
+        if (goal.targetCalories) {
+            const percentage = Math.max(0, Math.min((todayStats.caloriesConsumed / goal.targetCalories) * 100, 100));
+            return {
+                percentage,
+                currentText: `${todayStats.caloriesConsumed} / ${goal.targetCalories} kcal`,
+                status: getMetricState(todayStats.caloriesConsumed, goal.targetCalories),
+                targetText: 'Daily Calories Goal'
+            };
+        }
+
+        if (goal.progressPercentage !== null && goal.progressPercentage !== undefined) {
+            const fallbackStatus = getMetricState(goal.progressPercentage, 100);
+            return {
+                percentage: Math.max(0, Math.min(goal.progressPercentage, 100)),
+                currentText: `${goal.progressPercentage.toFixed(1)}% complete`,
+                status: fallbackStatus,
+                targetText: null
+            };
+        }
+
+        return {
+            percentage: 0,
+            currentText: 'No measurable daily target available',
+            status: { label: 'Average', color: 'text-yellow-700 bg-yellow-100', bar: 'bg-yellow-500' },
+            targetText: null
+        };
+    };
+
+    const activeGoal = goals.find((goal) => goal.status === 'ACTIVE') || goals[0];
+    const suggestedStepsPlan = getSuggestedStepsFromBmi(todayStats.bmi);
+    const effectiveStepsTarget = activeGoal?.targetSteps || suggestedStepsPlan.target;
+    const stepCompletionPercentage = Math.max(0, Math.min((todayStats.steps / effectiveStepsTarget) * 100, 100));
+
+    const coachMessage = stepCompletionPercentage >= 100
+        ? `🎉 Brilliant! You achieved today’s step goal (${effectiveStepsTarget.toLocaleString()}).`
+        : stepCompletionPercentage >= 60
+            ? `🔥 Great momentum — just ${(effectiveStepsTarget - todayStats.steps).toLocaleString()} more steps to hit today’s goal.`
+            : `💡 Let’s build momentum: a 10-minute brisk walk now will move you closer to ${(effectiveStepsTarget).toLocaleString()} steps.`;
+
+    useEffect(() => {
+        if (!effectiveStepsTarget || todayStats.steps < effectiveStepsTarget) return;
+
+        const today = new Date().toISOString().split('T')[0];
+        const celebrationKey = `${today}-${effectiveStepsTarget}`;
+        if (lastCelebrationKey === celebrationKey) return;
+
+        confetti({ particleCount: 120, spread: 80, origin: { y: 0.65 } });
+        confetti({ particleCount: 90, angle: 60, spread: 70, origin: { x: 0 } });
+        confetti({ particleCount: 90, angle: 120, spread: 70, origin: { x: 1 } });
+        setLastCelebrationKey(celebrationKey);
+    }, [todayStats.steps, effectiveStepsTarget, lastCelebrationKey]);
+
+    const insights = [];
+
+    if (effectiveStepsTarget) {
+        const gap = effectiveStepsTarget - todayStats.steps;
+        if (gap > 0) {
+            insights.push({
+                icon: '⚠️',
+                text: `You need ${gap.toLocaleString()} more steps today`,
+                tone: 'text-yellow-700 bg-yellow-50 border-yellow-200'
+            });
+        } else {
+            insights.push({
+                icon: '✅',
+                text: 'Steps goal achieved',
+                tone: 'text-green-700 bg-green-50 border-green-200'
+            });
+        }
+    }
+
+    if (todayStats.sleepHours >= 7) {
+        insights.push({
+            icon: '✅',
+            text: 'Sleep target achieved',
+            tone: 'text-green-700 bg-green-50 border-green-200'
+        });
+    } else if (todayStats.sleepHours >= 6) {
+        insights.push({
+            icon: '⚠️',
+            text: 'Sleep slightly below recommended level',
+            tone: 'text-yellow-700 bg-yellow-50 border-yellow-200'
+        });
+    } else if (todayStats.sleepHours > 0) {
+        insights.push({
+            icon: '⚠️',
+            text: 'Sleep below recommended level',
+            tone: 'text-red-700 bg-red-50 border-red-200'
+        });
+    }
+
+    if (todayStats.waterLiters >= 2) {
+        insights.push({
+            icon: '✅',
+            text: 'Hydration goal achieved',
+            tone: 'text-green-700 bg-green-50 border-green-200'
+        });
+    } else if (todayStats.waterLiters >= 1) {
+        insights.push({
+            icon: '⚠️',
+            text: 'Low hydration today',
+            tone: 'text-yellow-700 bg-yellow-50 border-yellow-200'
+        });
+    } else if (todayStats.waterLiters > 0) {
+        insights.push({
+            icon: '⚠️',
+            text: 'Hydration critically low today',
+            tone: 'text-red-700 bg-red-50 border-red-200'
+        });
+    }
+
+    if (activeGoal?.targetWorkoutMinutes) {
+        if (todayStats.workoutMinutes >= activeGoal.targetWorkoutMinutes) {
+            insights.push({
+                icon: '✅',
+                text: 'Workout goal achieved',
+                tone: 'text-green-700 bg-green-50 border-green-200'
+            });
+        } else {
+            insights.push({
+                icon: '⚠️',
+                text: `Need ${activeGoal.targetWorkoutMinutes - todayStats.workoutMinutes} more workout minutes`,
+                tone: 'text-yellow-700 bg-yellow-50 border-yellow-200'
+            });
+        }
+    }
+
+    const activeGoalsCount = goals.filter((goal) => goal.status === 'ACTIVE').length;
+    const completedGoalsCount = goals.filter((goal) => goal.status === 'COMPLETED').length;
+    const dailyStates = {
+        steps: getDailyMetricState('steps', todayStats.steps, effectiveStepsTarget),
+        sleep: getDailyMetricState('sleep', todayStats.sleepHours, 7),
+        hydration: getDailyMetricState('hydration', todayStats.waterLiters, 2),
+        workout: getDailyMetricState('workout', todayStats.workoutMinutes, activeGoal?.targetWorkoutMinutes || 45)
+    };
+
+    const readinessSignals = [
+        dailyStates.steps.label === 'Good' ? 100 : dailyStates.steps.label === 'Average' ? 70 : 35,
+        dailyStates.sleep.label === 'Good' ? 100 : dailyStates.sleep.label === 'Average' ? 70 : 35,
+        dailyStates.hydration.label === 'Good' ? 100 : dailyStates.hydration.label === 'Average' ? 70 : 35,
+        dailyStates.workout.label === 'Good' ? 100 : dailyStates.workout.label === 'Average' ? 70 : 35
+    ];
+    const readinessScore = Math.round(readinessSignals.reduce((sum, value) => sum + value, 0) / readinessSignals.length);
+    const readinessState = getMetricState(readinessScore, 100);
+
     if (loading) {
         return <div className="flex justify-center items-center h-64">Loading...</div>;
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 py-8 px-4">
-            <div className="max-w-6xl mx-auto">
-                <div className="flex justify-between items-center mb-8">
-                    <h1 className="text-3xl font-bold text-gray-900">Fitness Goals</h1>
-                    <button
-                        onClick={() => {
-                            setShowForm(!showForm);
-                            setEditingGoal(null);
-                            setFormData({
-                                goalType: 'WEIGHT_LOSS',
-                                targetWeight: '',
-                                targetCalories: '',
-                                targetSteps: '',
-                                targetWorkoutMinutes: '',
-                                targetDate: '',
-                                notes: ''
-                            });
-                        }}
-                        className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition"
-                    >
-                        {showForm ? 'Cancel' : '+ New Goal'}
-                    </button>
+        <div className="min-h-screen wellnest-app-bg py-8 px-4">
+            <div className="max-w-6xl mx-auto wellnest-content-layer">
+                <PageHeader
+                    title="Fitness Goals"
+                    subtitle="Monitor daily execution, compare milestones, and stay on track."
+                    icon="🎯"
+                />
+                <div className="bg-slate-900 text-white rounded-3xl shadow-xl overflow-hidden mb-8">
+                    <div className="bg-[radial-gradient(circle_at_top_right,_rgba(96,165,250,0.35),_transparent_35%),radial-gradient(circle_at_bottom_left,_rgba(52,211,153,0.25),_transparent_30%)] px-8 py-8 md:px-10 md:py-10">
+                        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-8">
+                            <div className="max-w-2xl">
+                                <span className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-100">
+                                    Performance command center
+                                </span>
+                                <h1 className="mt-4 text-3xl md:text-4xl font-bold tracking-tight">Fitness Goals</h1>
+                                <p className="mt-3 text-slate-200 text-sm md:text-base leading-7">
+                                    Monitor daily execution, compare it against your milestones, and catch early warning signals before a goal slips off track.
+                                </p>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 min-w-full lg:min-w-[420px] lg:max-w-[460px]">
+                                <div className="rounded-2xl bg-white/10 border border-white/10 p-4 backdrop-blur-sm">
+                                    <p className="text-xs uppercase tracking-wide text-slate-300">Readiness score</p>
+                                    <p className="mt-2 text-3xl font-bold">{readinessScore}%</p>
+                                    <span className={`inline-flex mt-3 rounded-full border px-2.5 py-1 text-xs font-semibold ${readinessState.color.replace('bg-', 'border-').replace('text-', 'text-').replace('bg-', 'bg-')}`}>
+                                        {readinessState.label}
+                                    </span>
+                                </div>
+                                <div className="rounded-2xl bg-white/10 border border-white/10 p-4 backdrop-blur-sm">
+                                    <p className="text-xs uppercase tracking-wide text-slate-300">Active goals</p>
+                                    <p className="mt-2 text-3xl font-bold">{activeGoalsCount}</p>
+                                    <p className="mt-3 text-xs text-slate-300">Focus areas currently in motion</p>
+                                </div>
+                                <div className="rounded-2xl bg-white/10 border border-white/10 p-4 backdrop-blur-sm">
+                                    <p className="text-xs uppercase tracking-wide text-slate-300">Completed</p>
+                                    <p className="mt-2 text-3xl font-bold">{completedGoalsCount}</p>
+                                    <p className="mt-3 text-xs text-slate-300">Milestones already achieved</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="mt-6 rounded-2xl border border-white/15 bg-white/10 p-4">
+                            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+                                <div>
+                                    <p className="text-sm font-semibold text-white">Today&apos;s suggested step goal: {effectiveStepsTarget.toLocaleString()} steps</p>
+                                    <p className="text-xs text-slate-200 mt-1">
+                                        Based on BMI {todayStats.bmi ? todayStats.bmi.toFixed(1) : 'N/A'} · {suggestedStepsPlan.guidance}
+                                    </p>
+                                    <p className="text-xs text-slate-300 mt-1">{suggestedStepsPlan.note}</p>
+                                </div>
+                                <button
+                                    onClick={async () => {
+                                        try {
+                                            if (activeGoal?.id) {
+                                                await updateGoal(activeGoal.id, { targetSteps: suggestedStepsPlan.target });
+                                                await fetchGoals();
+                                                alert(`Updated active goal to ${suggestedStepsPlan.target.toLocaleString()} steps/day.`);
+                                                return;
+                                            }
+
+                                            setShowForm(true);
+                                            setFormData((prev) => ({
+                                                ...prev,
+                                                targetSteps: String(suggestedStepsPlan.target)
+                                            }));
+                                            alert('No active goal found. Suggested steps were pre-filled in the goal form.');
+                                        } catch (error) {
+                                            alert('Failed to apply suggested steps: ' + error.message);
+                                        }
+                                    }}
+                                    className="inline-flex items-center justify-center rounded-xl bg-white px-4 py-2 text-xs font-semibold text-slate-900 hover:bg-slate-100 transition"
+                                >
+                                    Apply suggested steps
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="mt-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                            <div className="flex flex-wrap gap-2">
+                                {statusLegend.map((item) => (
+                                    <span key={item.label} className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium ${item.tone}`}>
+                                        {item.label}
+                                    </span>
+                                ))}
+                            </div>
+                            <div className="flex flex-wrap gap-2 justify-end">
+                                <button
+                                    onClick={() => setShowDailyUpdate(!showDailyUpdate)}
+                                    className="inline-flex items-center justify-center rounded-xl border border-white/40 bg-white/15 px-5 py-3 text-sm font-semibold text-white hover:bg-white/20 transition"
+                                >
+                                    {showDailyUpdate ? 'Close activity update' : 'Update steps/workout'}
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setShowForm(!showForm);
+                                        setEditingGoal(null);
+                                        setFormData({
+                                            goalType: 'WEIGHT_LOSS',
+                                            targetWeight: '',
+                                            targetCalories: '',
+                                            targetSteps: '',
+                                            targetWorkoutMinutes: '',
+                                            targetDate: '',
+                                            notes: ''
+                                        });
+                                    }}
+                                    className="inline-flex items-center justify-center rounded-xl bg-white px-6 py-3 text-sm font-semibold text-slate-900 shadow-lg hover:bg-slate-100 transition"
+                                >
+                                    {showForm ? 'Cancel editing' : '+ Create strategic goal'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
+                {showDailyUpdate && (
+                    <div className="bg-white rounded-3xl shadow-lg border border-slate-200 p-6 mb-8">
+                        <h2 className="text-xl font-semibold mb-1 text-slate-900">Update today&apos;s activity</h2>
+                        <p className="text-sm text-slate-500 mb-4">Use this quick update when steps or workout minutes need manual entry.</p>
+                        <form onSubmit={handleDailyUpdateSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Steps today</label>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    value={dailyUpdate.stepsCount}
+                                    onChange={(e) => setDailyUpdate((prev) => ({ ...prev, stepsCount: e.target.value }))}
+                                    placeholder={`Current: ${todayStats.steps.toLocaleString()}`}
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Workout minutes today</label>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    value={dailyUpdate.workoutDurationMinutes}
+                                    onChange={(e) => setDailyUpdate((prev) => ({ ...prev, workoutDurationMinutes: e.target.value }))}
+                                    placeholder={`Current: ${todayStats.workoutMinutes} min`}
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                />
+                            </div>
+                            <button
+                                type="submit"
+                                className="h-10 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 transition"
+                            >
+                                Save update
+                            </button>
+                        </form>
+                    </div>
+                )}
+
                 {showForm && (
-                    <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-                        <h2 className="text-xl font-semibold mb-4">
+                    <div className="bg-white rounded-3xl shadow-lg border border-slate-200 p-6 mb-8">
+                        <h2 className="text-xl font-semibold mb-4 text-slate-900">
                             {editingGoal ? 'Edit Goal' : 'Create New Goal'}
                         </h2>
                         <form onSubmit={handleSubmit} className="space-y-4">
@@ -260,17 +842,120 @@ const FitnessGoals = () => {
                     </div>
                 )}
 
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                    {[
+                        {
+                            title: 'Steps',
+                            type: 'steps',
+                            value: todayStats.steps.toLocaleString(),
+                            target: effectiveStepsTarget,
+                            unit: 'steps',
+                            raw: todayStats.steps
+                        },
+                        {
+                            title: 'Sleep',
+                            type: 'sleep',
+                            value: todayStats.sleepHours ? `${todayStats.sleepHours.toFixed(1)}h` : '0h',
+                            target: 7,
+                            unit: 'hours',
+                            raw: todayStats.sleepHours
+                        },
+                        {
+                            title: 'Hydration',
+                            type: 'hydration',
+                            value: `${todayStats.waterLiters.toFixed(1)}L`,
+                            target: 2,
+                            unit: 'liters',
+                            raw: todayStats.waterLiters
+                        },
+                        {
+                            title: 'Workout',
+                            type: 'workout',
+                            value: `${todayStats.workoutMinutes} min`,
+                            target: activeGoal?.targetWorkoutMinutes || 45,
+                            unit: 'minutes',
+                            raw: todayStats.workoutMinutes
+                        }
+                    ].map((metric) => {
+                        const state = getDailyMetricState(metric.type, metric.raw, metric.target);
+                        const percentage = Math.max(0, Math.min((metric.raw / metric.target) * 100, 100));
+                        const config = metricDefinitions.find((item) => item.key === metric.title);
+                        return (
+                            <div key={metric.title} className="bg-white rounded-2xl shadow-md border border-slate-100 p-5 hover:shadow-lg transition-all wellnest-emoji-card">
+                                <div className="flex justify-between items-start gap-4">
+                                    <div>
+                                        <p className="text-sm text-slate-500">{metric.title}</p>
+                                        <p className="text-2xl font-bold text-slate-900 mt-2">{metric.value}</p>
+                                    </div>
+                                    <div className={`h-12 w-12 rounded-2xl bg-gradient-to-br ${config?.accent || 'from-slate-500 to-slate-600'} text-white flex items-center justify-center text-xl shadow-lg`}>
+                                        {config?.icon || '🎯'}
+                                    </div>
+                                </div>
+                                <div className="mt-4 flex items-center justify-between">
+                                    <p className="text-xs text-slate-500">Target: {metric.target} {metric.unit}</p>
+                                    <span className={`text-xs px-2 py-1 rounded-full font-medium ${state.color}`}>{state.label}</span>
+                                </div>
+                                <div className="w-full bg-slate-100 rounded-full h-2.5 mt-3">
+                                    <div className={`h-2 rounded-full transition-all ${state.bar}`} style={{ width: `${percentage}%` }} />
+                                </div>
+                                <div className="mt-3 flex items-center justify-between text-xs">
+                                    <span className="text-slate-500">Progress today</span>
+                                    <span className="font-semibold text-slate-800">{Math.round(percentage)}%</span>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+
+                <div className={`rounded-2xl border px-4 py-3 mb-8 text-sm font-medium ${stepCompletionPercentage >= 100 ? 'border-green-200 bg-green-50 text-green-800' : stepCompletionPercentage >= 60 ? 'border-yellow-200 bg-yellow-50 text-yellow-800' : 'border-blue-200 bg-blue-50 text-blue-800'}`}>
+                    {coachMessage}
+                </div>
+
+                {insights.length > 0 && (
+                    <div className="bg-white rounded-3xl shadow-md border border-slate-100 p-6 mb-8">
+                        <div className="flex items-center justify-between gap-4 mb-4">
+                            <div>
+                                <h2 className="text-xl font-semibold text-slate-900">Milestone Insights</h2>
+                                <p className="text-sm text-slate-500 mt-1">Actionable nudges generated from today’s performance versus your targets.</p>
+                            </div>
+                            <div className="hidden md:flex items-center gap-2 text-xs text-slate-500">
+                                <span className="h-2 w-2 rounded-full bg-green-500" /> On track
+                                <span className="h-2 w-2 rounded-full bg-yellow-500 ml-3" /> Needs attention
+                                <span className="h-2 w-2 rounded-full bg-red-500 ml-3" /> Priority
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {insights.map((item, idx) => (
+                                <div key={idx} className={`border rounded-2xl px-4 py-4 text-sm font-medium ${item.tone}`}>
+                                    <div className="flex items-start gap-3">
+                                        <span className="text-lg leading-none mt-0.5">{item.icon}</span>
+                                        <div>
+                                            <p>{item.text}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {goals.length === 0 ? (
-                        <div className="col-span-full text-center py-12 text-gray-500">
-                            No goals yet. Create your first fitness goal!
+                        <div className="col-span-full text-center py-14 rounded-3xl border border-dashed border-slate-300 bg-white text-slate-500 shadow-sm">
+                            <div className="text-4xl mb-3">🎯</div>
+                            <p className="font-medium text-slate-700">No goals yet. Create your first fitness goal!</p>
+                            <p className="text-sm mt-2">Start with daily steps or workout minutes for the fastest momentum.</p>
                         </div>
                     ) : (
                         goals.map((goal) => (
-                            <div key={goal.id} className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition">
+                            <div key={goal.id} className="bg-white rounded-3xl shadow-md border border-slate-100 p-6 hover:shadow-xl transition-all wellnest-emoji-card">
+                                {(() => {
+                                    const progress = getGoalProgress(goal);
+                                    return (
+                                        <>
                                 <div className="flex justify-between items-start mb-4">
                                     <div>
-                                        <h3 className="text-xl font-semibold text-gray-900">
+                                        <h3 className="text-xl font-semibold text-slate-900">
                                             {getGoalTypeLabel(goal.goalType)}
                                         </h3>
                                         <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium mt-2 ${getStatusColor(goal.status)}`}>
@@ -293,7 +978,7 @@ const FitnessGoals = () => {
                                     </div>
                                 </div>
 
-                                <div className="space-y-2 text-sm text-gray-600">
+                                <div className="grid grid-cols-1 gap-2 text-sm text-slate-600">
                                     {goal.targetWeight && (
                                         <p>🎯 Target Weight: <span className="font-semibold">{goal.targetWeight} kg</span></p>
                                     )}
@@ -311,24 +996,32 @@ const FitnessGoals = () => {
                                     )}
                                 </div>
 
-                                {goal.progressPercentage !== null && (
-                                    <div className="mt-4">
-                                        <div className="flex justify-between text-sm mb-1">
-                                            <span className="text-gray-600">Progress</span>
-                                            <span className="font-semibold text-blue-600">{goal.progressPercentage.toFixed(1)}%</span>
-                                        </div>
-                                        <div className="w-full bg-gray-200 rounded-full h-2">
-                                            <div
-                                                className="bg-blue-600 h-2 rounded-full transition-all"
-                                                style={{ width: `${Math.min(goal.progressPercentage, 100)}%` }}
-                                            />
-                                        </div>
+                                <div className="mt-5 p-4 rounded-2xl bg-slate-50 border border-slate-100">
+                                    {progress.targetText && (
+                                        <p className="text-xs text-slate-500 mb-1 uppercase tracking-wide">{progress.targetText}</p>
+                                    )}
+                                    <p className="text-sm text-slate-700">{progress.currentText}</p>
+                                    <div className="flex justify-between text-sm mb-1 mt-2">
+                                        <span className="text-slate-600">Progress</span>
+                                        <span className="font-semibold text-slate-900">{Math.round(progress.percentage)}%</span>
                                     </div>
-                                )}
+                                    <div className="w-full bg-slate-200 rounded-full h-2.5">
+                                        <div
+                                            className={`h-2.5 rounded-full transition-all ${progress.status.bar}`}
+                                            style={{ width: `${progress.percentage}%` }}
+                                        />
+                                    </div>
+                                    <span className={`inline-block mt-2 px-2 py-1 rounded-full text-xs font-medium ${progress.status.color}`}>
+                                        {progress.status.label}
+                                    </span>
+                                </div>
 
                                 {goal.notes && (
-                                    <p className="mt-4 text-sm text-gray-500 italic">{goal.notes}</p>
+                                    <p className="mt-4 text-sm text-slate-500 italic border-t border-slate-100 pt-4">{goal.notes}</p>
                                 )}
+                                        </>
+                                    );
+                                })()}
                             </div>
                         ))
                     )}

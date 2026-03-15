@@ -37,6 +37,8 @@ public class UserService {
             user.setHeight(userDto.getHeight());
         if (userDto.getAge() != null)
             user.setAge(userDto.getAge());
+        if (userDto.getGender() != null)
+            user.setGender(userDto.getGender());
         if (userDto.getFitnessGoal() != null)
             user.setFitnessGoal(userDto.getFitnessGoal());
 
@@ -99,6 +101,7 @@ public class UserService {
         dto.setWeight(user.getWeight());
         dto.setHeight(user.getHeight());
         dto.setAge(user.getAge());
+        dto.setGender(user.getGender());
         dto.setPhoneNumber(user.getPhoneNumber());
         dto.setFitnessGoal(user.getFitnessGoal());
         return dto;

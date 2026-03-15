@@ -1,5 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { getUserMeals, addMeal, deleteMeal, getDailyCalories, getIndianCuisineTemplates } from '../utils/mealsApi';
+import PageHeader from '../components/PageHeader';
+
+const getLocalDateTimeInputValue = () => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    return `${y}-${m}-${d}T${hh}:${mm}`;
+};
+
+const getLocalDate = () => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+};
 
 const MealTracker = () => {
     const [meals, setMeals] = useState([]);
@@ -20,7 +39,7 @@ const MealTracker = () => {
         portionSize: '',
         isVegetarian: false,
         isVegan: false,
-        mealDate: new Date().toISOString().substring(0, 16),
+        mealDate: getLocalDateTimeInputValue(),
         notes: ''
     });
 
@@ -43,7 +62,7 @@ const MealTracker = () => {
 
     const fetchDailyCalories = async () => {
         try {
-            const today = new Date().toISOString().split('T')[0];
+            const today = getLocalDate();
             const data = await getDailyCalories(today);
             setDailyCalories(data);
         } catch (error) {
@@ -109,7 +128,7 @@ const MealTracker = () => {
                 portionSize: '',
                 isVegetarian: false,
                 isVegan: false,
-                mealDate: new Date().toISOString().substring(0, 16),
+                mealDate: getLocalDateTimeInputValue(),
                 notes: ''
             });
             fetchMeals();
@@ -137,21 +156,25 @@ const MealTracker = () => {
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 py-8 px-4">
-            <div className="max-w-7xl mx-auto">
-                <div className="flex justify-between items-center mb-8">
-                    <h1 className="text-3xl font-bold text-gray-900">Meal Tracker</h1>
-                    <button
-                        onClick={() => setShowForm(!showForm)}
-                        className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition"
-                    >
-                        {showForm ? 'Cancel' : '+ Log Meal'}
-                    </button>
-                </div>
+        <div className="min-h-screen wellnest-app-bg py-8 px-4">
+            <div className="max-w-7xl mx-auto wellnest-content-layer">
+                <PageHeader
+                    title="Meal Tracker"
+                    subtitle="Track your meals, calories, and macros with quick Indian cuisine presets."
+                    icon="🍽️"
+                    action={
+                        <button
+                            onClick={() => setShowForm(!showForm)}
+                            className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition"
+                        >
+                            {showForm ? 'Cancel' : '+ Log Meal'}
+                        </button>
+                    }
+                />
 
                 {/* Daily Calorie Summary */}
                 {dailyCalories && (
-                    <div className="bg-gradient-to-r from-green-500 to-blue-500 rounded-lg shadow-lg p-6 mb-8 text-white">
+                    <div className="wellnest-emoji-card bg-gradient-to-r from-green-500 to-blue-500 rounded-lg shadow-lg p-6 mb-8 text-white">
                         <h2 className="text-2xl font-bold mb-4">Today's Calorie Intake</h2>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                             <div>
@@ -199,8 +222,8 @@ const MealTracker = () => {
                 )}
 
                 {showForm && (
-                    <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-                        <h2 className="text-xl font-semibold mb-4">Log New Meal</h2>
+                    <div className="wellnest-surface p-6 mb-8">
+                        <h2 className="wellnest-section-title mb-4">Log New Meal</h2>
                         <form onSubmit={handleSubmit} className="space-y-4">
                             {/* Indian Cuisine Template Selector */}
                             <div>
@@ -390,8 +413,8 @@ const MealTracker = () => {
                 )}
 
                 {/* Meals List */}
-                <div className="bg-white rounded-lg shadow-md p-6">
-                    <h2 className="text-xl font-semibold mb-4">Recent Meals</h2>
+                <div className="wellnest-surface p-6">
+                    <h2 className="wellnest-section-title mb-4">Recent Meals</h2>
                     {meals.length === 0 ? (
                         <p className="text-center text-gray-500 py-8">No meals logged yet</p>
                     ) : (

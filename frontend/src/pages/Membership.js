@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { getActiveMembership, getMembershipPlans, createMembership, processPayment, upgradeMembership, getMembershipHistory } from '../utils/membershipApi';
+import { getActiveMembership, getMembershipPlans, createMembership, processPayment, getMembershipHistory } from '../utils/membershipApi';
+import PageHeader from '../components/PageHeader';
 
 const Membership = () => {
     const [activeMembership, setActiveMembership] = useState(null);
     const [plans, setPlans] = useState({});
     const [history, setHistory] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [selectedPlan, setSelectedPlan] = useState(null);
     const [billingCycle, setBillingCycle] = useState('MONTHLY');
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [paymentMethod, setPaymentMethod] = useState('UPI');
@@ -48,7 +48,6 @@ const Membership = () => {
             return;
         }
 
-        setSelectedPlan(planType);
         try {
             const membership = await createMembership({
                 planType,
@@ -72,22 +71,9 @@ const Membership = () => {
             alert('Payment successful! Your membership is now active.');
             setShowPaymentModal(false);
             setPendingMembership(null);
-            setSelectedPlan(null);
             fetchData();
         } catch (error) {
             alert('Payment failed: ' + error.message);
-        }
-    };
-
-    const handleUpgrade = async (newPlan) => {
-        if (window.confirm(`Upgrade to ${plans[newPlan]?.name}?`)) {
-            try {
-                await upgradeMembership(newPlan);
-                alert('Membership upgraded successfully!');
-                fetchData();
-            } catch (error) {
-                alert('Error upgrading membership: ' + error.message);
-            }
         }
     };
 
@@ -96,19 +82,23 @@ const Membership = () => {
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 py-8 px-4">
-            <div className="max-w-7xl mx-auto">
-                <h1 className="text-3xl font-bold text-gray-900 mb-8">Membership Plans</h1>
+        <div className="min-h-screen wellnest-app-bg py-8 px-4">
+            <div className="max-w-7xl mx-auto wellnest-content-layer">
+                <PageHeader
+                    title="Membership Plans"
+                    subtitle="Choose the right plan and billing cycle for your fitness journey."
+                    icon="💳"
+                />
 
                 {/* Current Membership */}
                 {activeMembership && (
-                    <div className="bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg shadow-lg p-6 mb-8 text-white">
+                    <div className="wellnest-emoji-card bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg shadow-lg p-6 mb-8 text-white">
                         <h2 className="text-2xl font-bold mb-2">Current Plan</h2>
                         <div className="flex justify-between items-center">
                             <div>
                                 <p className="text-3xl font-bold">{activeMembership.planName}</p>
                                 <p className="mt-2">
-                                    ${activeMembership.price}/{activeMembership.billingCycle.toLowerCase()}
+                                    ₹{activeMembership.price}/{activeMembership.billingCycle.toLowerCase()}
                                 </p>
                                 <p className="text-sm opacity-90 mt-1">
                                     Valid until {new Date(activeMembership.endDate).toLocaleDateString()}
@@ -124,7 +114,7 @@ const Membership = () => {
                 )}
 
                 {/* Billing Cycle Selector */}
-                <div className="bg-white rounded-lg shadow-md p-4 mb-6">
+                <div className="wellnest-surface p-4 mb-6">
                     <p className="text-sm font-medium text-gray-700 mb-2">Select Billing Cycle:</p>
                     <div className="flex gap-4">
                         <button
@@ -170,7 +160,7 @@ const Membership = () => {
                         return (
                             <div
                                 key={planKey}
-                                className={`bg-white rounded-lg shadow-md p-6 hover:shadow-xl transition ${
+                                className={`wellnest-surface p-6 hover:shadow-xl transition ${
                                     isCurrentPlan ? 'ring-2 ring-blue-500' : ''
                                 }`}
                             >
@@ -181,7 +171,7 @@ const Membership = () => {
                                 )}
                                 <h3 className="text-2xl font-bold text-gray-900 mb-2">{plan.name}</h3>
                                 <p className="text-4xl font-bold text-gray-900 mb-4">
-                                    {price > 0 ? `$${price}` : 'Free'}
+                                    {price > 0 ? `₹${price}` : 'Free'}
                                     {price > 0 && <span className="text-sm text-gray-600">/{billingCycle.toLowerCase()}</span>}
                                 </p>
                                 <ul className="space-y-2 mb-6">
@@ -215,7 +205,7 @@ const Membership = () => {
                             <h2 className="text-2xl font-bold mb-4">Complete Payment</h2>
                             <div className="mb-6">
                                 <p className="text-gray-600 mb-2">Plan: <span className="font-semibold">{pendingMembership.planName}</span></p>
-                                <p className="text-gray-600 mb-2">Amount: <span className="font-semibold text-2xl">${pendingMembership.price}</span></p>
+                                <p className="text-gray-600 mb-2">Amount: <span className="font-semibold text-2xl">₹{pendingMembership.price}</span></p>
                                 <p className="text-sm text-gray-500">Transaction ID: {pendingMembership.transactionId}</p>
                             </div>
                             
@@ -259,8 +249,8 @@ const Membership = () => {
 
                 {/* Membership History */}
                 {history.length > 0 && (
-                    <div className="bg-white rounded-lg shadow-md p-6">
-                        <h2 className="text-xl font-semibold mb-4">Membership History</h2>
+                    <div className="wellnest-surface p-6">
+                        <h2 className="wellnest-section-title mb-4">Membership History</h2>
                         <div className="overflow-x-auto">
                             <table className="w-full">
                                 <thead>
@@ -276,7 +266,7 @@ const Membership = () => {
                                     {history.map((item) => (
                                         <tr key={item.id} className="border-b hover:bg-gray-50">
                                             <td className="py-3 px-4 text-sm">{item.planName}</td>
-                                            <td className="py-3 px-4 text-sm">${item.price}</td>
+                                            <td className="py-3 px-4 text-sm">₹{item.price}</td>
                                             <td className="py-3 px-4 text-sm text-gray-600">
                                                 {new Date(item.startDate).toLocaleDateString()} - {new Date(item.endDate).toLocaleDateString()}
                                             </td>

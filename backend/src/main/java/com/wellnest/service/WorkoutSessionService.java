@@ -31,26 +31,8 @@ public class WorkoutSessionService {
 
         WorkoutSession session = new WorkoutSession();
         session.setUser(user);
-        
-        if (sessionDto.getWorkoutPlanId() != null) {
-            WorkoutPlan plan = workoutPlanRepository.findById(sessionDto.getWorkoutPlanId())
-                    .orElse(null);
-            session.setWorkoutPlan(plan);
-            if (sessionDto.getWorkoutName() == null && plan != null) {
-                session.setWorkoutName(plan.getName());
-            } else {
-                session.setWorkoutName(sessionDto.getWorkoutName());
-            }
-        } else {
-            session.setWorkoutName(sessionDto.getWorkoutName());
-        }
-        
-        session.setWorkoutType(sessionDto.getWorkoutType());
-        session.setDurationMinutes(sessionDto.getDurationMinutes());
-        session.setCaloriesBurned(sessionDto.getCaloriesBurned());
-        session.setCompletedAt(sessionDto.getCompletedAt() != null ? 
-            sessionDto.getCompletedAt() : LocalDateTime.now());
-        session.setNotes(sessionDto.getNotes());
+
+        applySessionFields(session, sessionDto);
 
         WorkoutSession saved = workoutSessionRepository.save(session);
         return convertToDto(saved);
@@ -68,6 +50,51 @@ public class WorkoutSessionService {
                 .stream()
                 .map(this::convertToDto)
                 .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public WorkoutSessionDto updateWorkoutSession(Long userId, Long sessionId, WorkoutSessionDto sessionDto) {
+        WorkoutSession session = workoutSessionRepository.findByIdAndUserId(sessionId, userId)
+                .orElseThrow(() -> new RuntimeException("Workout session not found"));
+
+        applySessionFields(session, sessionDto);
+        WorkoutSession updated = workoutSessionRepository.save(session);
+        return convertToDto(updated);
+    }
+
+    @Transactional
+    public void deleteWorkoutSession(Long userId, Long sessionId) {
+        WorkoutSession session = workoutSessionRepository.findByIdAndUserId(sessionId, userId)
+                .orElseThrow(() -> new RuntimeException("Workout session not found"));
+        workoutSessionRepository.delete(session);
+    }
+
+    private void applySessionFields(WorkoutSession session, WorkoutSessionDto sessionDto) {
+        if (sessionDto.getWorkoutPlanId() != null) {
+            WorkoutPlan plan = workoutPlanRepository.findById(sessionDto.getWorkoutPlanId())
+                    .orElse(null);
+            session.setWorkoutPlan(plan);
+            if (sessionDto.getWorkoutName() == null && plan != null) {
+                session.setWorkoutName(plan.getName());
+            } else {
+                session.setWorkoutName(sessionDto.getWorkoutName());
+            }
+        } else {
+            session.setWorkoutPlan(null);
+            session.setWorkoutName(
+                    sessionDto.getWorkoutName() != null && !sessionDto.getWorkoutName().isBlank()
+                            ? sessionDto.getWorkoutName()
+                            : sessionDto.getWorkoutType() + " Session"
+            );
+        }
+
+        session.setWorkoutType(sessionDto.getWorkoutType());
+        session.setDurationMinutes(sessionDto.getDurationMinutes());
+        session.setCaloriesBurned(sessionDto.getCaloriesBurned());
+        session.setCompletedAt(sessionDto.getCompletedAt() != null
+                ? sessionDto.getCompletedAt()
+                : LocalDateTime.now());
+        session.setNotes(sessionDto.getNotes());
     }
 
     private WorkoutSessionDto convertToDto(WorkoutSession session) {

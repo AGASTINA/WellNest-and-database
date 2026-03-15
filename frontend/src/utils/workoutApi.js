@@ -1,6 +1,6 @@
 import { getToken } from './auth';
 
-const API_BASE_URL = 'http://localhost:8081/api/workout-plans';
+const API_BASE_URL = 'http://localhost:3000/api/workout-plans';
 
 const getHeaders = () => {
   const token = getToken();

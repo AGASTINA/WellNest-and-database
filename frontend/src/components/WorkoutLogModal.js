@@ -1,17 +1,39 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { logWorkoutSession } from '../utils/calorieApi';
 
-const WorkoutLogModal = ({ isOpen, onClose, onSuccess }) => {
-  const [workoutData, setWorkoutData] = useState({
-    workoutType: 'Running',
-    durationMinutes: '',
-    caloriesBurned: '',
-    notes: ''
-  });
+const defaultWorkoutData = {
+  workoutType: 'Running',
+  durationMinutes: '',
+  caloriesBurned: '',
+  notes: ''
+};
+
+const WorkoutLogModal = ({ isOpen, onClose, onSuccess, initialWorkoutData = null, onSubmitWorkout }) => {
+  const [workoutData, setWorkoutData] = useState(defaultWorkoutData);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const workoutTypes = ['Running', 'Yoga', 'Cycling', 'Swimming', 'Weightlifting', 'Walking'];
+  const isEditing = Boolean(initialWorkoutData?.id);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    if (initialWorkoutData) {
+      setWorkoutData({
+        workoutType: initialWorkoutData.workoutType || 'Running',
+        durationMinutes: initialWorkoutData.durationMinutes ?? '',
+        caloriesBurned: initialWorkoutData.caloriesBurned ?? '',
+        notes: initialWorkoutData.notes || ''
+      });
+    } else {
+      setWorkoutData(defaultWorkoutData);
+    }
+
+    setError('');
+  }, [initialWorkoutData, isOpen]);
 
   // Estimate calories based on workout type and duration
   const estimateCalories = (type, minutes) => {
@@ -66,32 +88,12 @@ const WorkoutLogModal = ({ isOpen, onClose, onSuccess }) => {
     console.log('Token exists:', !!localStorage.getItem('token'));
 
     try {
-      const response = await fetch('http://localhost:8081/api/workout-sessions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify(payload)
-      });
-
-      console.log('Response Status:', response.status);
-      const responseData = await response.json();
-      console.log('Response Data:', responseData);
-
-      if (!response.ok) {
-        throw new Error(responseData.message || `Server error: ${response.status}`);
-      }
+      const submitWorkout = onSubmitWorkout || logWorkoutSession;
+      const responseData = await submitWorkout(payload);
 
       console.log('Workout logged successfully:', responseData);
 
-      // Reset form
-      setWorkoutData({
-        workoutType: 'Running',
-        durationMinutes: '',
-        caloriesBurned: '',
-        notes: ''
-      });
+      setWorkoutData(defaultWorkoutData);
 
       setError('');
       if (onSuccess) {
@@ -115,7 +117,7 @@ const WorkoutLogModal = ({ isOpen, onClose, onSuccess }) => {
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-md max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-gray-900">Log Workout</h2>
+          <h2 className="text-2xl font-bold text-gray-900">{isEditing ? 'Update Workout' : 'Log Workout'}</h2>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 transition-colors"
@@ -208,7 +210,7 @@ const WorkoutLogModal = ({ isOpen, onClose, onSuccess }) => {
               disabled={loading}
               className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-medium rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all shadow-lg shadow-blue-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? 'Logging...' : 'Log Workout'}
+              {loading ? (isEditing ? 'Updating...' : 'Logging...') : (isEditing ? 'Update Workout' : 'Log Workout')}
             </button>
           </div>
         </form>
