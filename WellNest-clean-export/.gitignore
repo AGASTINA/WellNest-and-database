@@ -1,0 +1,4 @@
+# WellNest
+.DS_Store
+*.log
+.env
