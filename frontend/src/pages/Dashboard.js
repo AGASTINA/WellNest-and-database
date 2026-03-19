@@ -12,6 +12,7 @@ import workoutApi from '../utils/workoutApi';
 import { getLatestHealthMetrics, getUserConsultations, getUserMedicalRecords } from '../utils/medicalApi';
 import { deleteWorkoutSession, getCalorieSummary, getUserSessions, updateWorkoutSession } from '../utils/calorieApi';
 import { getUserMeals } from '../utils/mealsApi';
+import { getUserSleepLogs } from '../utils/sleepApi';
 import BMICalculator from '../components/BMICalculator';
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import {
@@ -19,6 +20,59 @@ import {
 } from 'recharts';
 
 const sparklineData1 = [{ value: 310 }, { value: 320 }, { value: 290 }, { value: 345 }, { value: 335 }, { value: 360 }, { value: 345 }];
+
+const asNumber = (...values) => {
+  for (const value of values) {
+    if (value === null || value === undefined || value === '') continue;
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return 0;
+};
+
+const clamp = (value, min, max) => Math.max(min, Math.min(value, max));
+
+const getScoreLabel = (score) => {
+  if (score >= 80) return 'Good';
+  if (score >= 60) return 'Average';
+  return 'Low';
+};
+
+const isAuthAccessIssue = (message = '') => {
+  const value = String(message || '').toLowerCase();
+  return value.includes('invalid or expired token')
+    || value.includes('missing or invalid authorization')
+    || value.includes('session expired')
+    || value.includes('user not found with id')
+    || value.includes('forbidden')
+    || value.includes('unauthorized');
+};
+
+const getLocalDateKey = (value) => {
+  if (!value) return null;
+
+  const raw = String(value);
+  const direct = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (direct) return direct[1];
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  const y = parsed.getFullYear();
+  const m = String(parsed.getMonth() + 1).padStart(2, '0');
+  const d = String(parsed.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
+const getRecentDateKeys = (days = 7) => {
+  const list = [];
+  const now = new Date();
+  for (let i = days - 1; i >= 0; i -= 1) {
+    const d = new Date(now);
+    d.setDate(now.getDate() - i);
+    list.push(getLocalDateKey(d));
+  }
+  return list;
+};
 
 const formatDateKey = (date) => {
   const d = new Date(date);
@@ -51,7 +105,7 @@ const buildChartDataByPeriod = (sessions, meals, period, metric = 'burned', acti
       if (!parsed || Number.isNaN(parsed.getTime())) return null;
       return {
         date: parsed,
-        calories: Number(session?.caloriesBurned || 0)
+        calories: asNumber(session?.caloriesBurned, session?.calories, session?.burnedCalories)
       };
     })
     .filter(Boolean);
@@ -63,7 +117,7 @@ const buildChartDataByPeriod = (sessions, meals, period, metric = 'burned', acti
       if (!parsed || Number.isNaN(parsed.getTime())) return null;
       return {
         date: parsed,
-        calories: Number(meal?.calories || 0)
+        calories: asNumber(meal?.calories, meal?.totalCalories)
       };
     })
     .filter(Boolean);
@@ -402,6 +456,7 @@ const Dashboard = () => {
   const [recentWorkoutSessions, setRecentWorkoutSessions] = useState([]);
   const [allWorkoutSessions, setAllWorkoutSessions] = useState([]);
   const [allMeals, setAllMeals] = useState([]);
+  const [sleepLogs, setSleepLogs] = useState([]);
   const [editingWorkoutSession, setEditingWorkoutSession] = useState(null);
 
   const [chartPeriod, setChartPeriod] = useState('month');
@@ -515,6 +570,14 @@ const Dashboard = () => {
         setWorkoutPlans(resolvedPlans);
       } catch (error) {
         console.error('Failed to fetch workouts:', error);
+        if (isAuthAccessIssue(error?.message)) {
+          clearAuthSession();
+          setWorkoutPlans([]);
+          setWorkoutError('Your session is invalid or expired. Please sign in again.');
+          navigate('/login');
+          return;
+        }
+
         setWorkoutError(error.message || 'Failed to load workouts. Please try again.');
         setWorkoutPlans([]);
       } finally {
@@ -523,19 +586,20 @@ const Dashboard = () => {
     };
 
     fetchWorkouts();
-  }, []);
+  }, [navigate]);
 
   const refreshDashboardData = useCallback(async () => {
     try {
       const token = localStorage.getItem('token');
       if (!token) return;
 
-      const [metricsResult, consultationsResult, summaryResult, sessionsResult, mealsResult] = await Promise.allSettled([
+      const [metricsResult, consultationsResult, summaryResult, sessionsResult, mealsResult, sleepLogsResult] = await Promise.allSettled([
         getLatestHealthMetrics(),
         getUserConsultations(),
         getCalorieSummary(formatLocalToday()),
         getUserSessions(),
-        getUserMeals()
+        getUserMeals(),
+        getUserSleepLogs()
       ]);
 
       if (metricsResult.status === 'fulfilled') {
@@ -560,6 +624,10 @@ const Dashboard = () => {
 
       if (mealsResult.status === 'fulfilled' && Array.isArray(mealsResult.value)) {
         setAllMeals(mealsResult.value);
+      }
+
+      if (sleepLogsResult.status === 'fulfilled' && Array.isArray(sleepLogsResult.value)) {
+        setSleepLogs(sleepLogsResult.value);
       }
     } catch (error) {
       console.error('Error refreshing dashboard data:', error);
@@ -591,27 +659,56 @@ const Dashboard = () => {
   }, [refreshDashboardData]);
 
   const dashboardSummary = useMemo(() => {
-    const caloriesConsumed = allMeals.reduce((sum, meal) => sum + Number(meal?.calories || 0), 0);
-    const totalProtein = allMeals.reduce((sum, meal) => sum + Number(meal?.proteinGrams || 0), 0);
-    const totalCarbs = allMeals.reduce((sum, meal) => sum + Number(meal?.carbsGrams || 0), 0);
-    const totalFat = allMeals.reduce((sum, meal) => sum + Number(meal?.fatGrams || 0), 0);
-    const caloriesBurned = allWorkoutSessions.reduce((sum, session) => sum + Number(session?.caloriesBurned || 0), 0);
-    const workoutMinutes = allWorkoutSessions.reduce((sum, session) => sum + Number(session?.durationMinutes || 0), 0);
+    const caloriesConsumed = allMeals.reduce((sum, meal) => sum + asNumber(meal?.calories, meal?.totalCalories), 0);
+    const totalProtein = allMeals.reduce((sum, meal) => sum + asNumber(meal?.proteinGrams, meal?.protein), 0);
+    const totalCarbs = allMeals.reduce((sum, meal) => sum + asNumber(meal?.carbsGrams, meal?.carbs), 0);
+    const totalFat = allMeals.reduce((sum, meal) => sum + asNumber(meal?.fatGrams, meal?.fat, meal?.fats), 0);
+    const caloriesBurned = allWorkoutSessions.reduce((sum, session) => sum + asNumber(session?.caloriesBurned, session?.calories), 0);
+    const workoutMinutes = allWorkoutSessions.reduce((sum, session) => sum + asNumber(session?.durationMinutes, session?.duration), 0);
 
     const hasAnyLogs = allMeals.length > 0 || allWorkoutSessions.length > 0;
     if (hasAnyLogs) {
       return {
-        caloriesConsumed,
-        caloriesBurned,
-        netCalories: caloriesConsumed - caloriesBurned,
-        totalProtein,
-        totalCarbs,
-        totalFat,
-        workoutMinutes
+        caloriesConsumed: Math.round(caloriesConsumed),
+        caloriesBurned: Math.round(caloriesBurned),
+        netCalories: Math.round(caloriesConsumed - caloriesBurned),
+        totalProtein: Math.round(totalProtein),
+        totalCarbs: Math.round(totalCarbs),
+        totalFat: Math.round(totalFat),
+        workoutMinutes: Math.round(workoutMinutes),
+        targetCalories: asNumber(calorieSummary?.targetCalories, 2000),
+        remainingCalories: asNumber(calorieSummary?.remainingCalories, asNumber(calorieSummary?.targetCalories, 2000) - caloriesConsumed),
+        progressPercentage: asNumber(calorieSummary?.progressPercentage)
       };
     }
 
-    return calorieSummary;
+    if (calorieSummary) {
+      return {
+        caloriesConsumed: Math.round(asNumber(calorieSummary?.caloriesConsumed)),
+        caloriesBurned: Math.round(asNumber(calorieSummary?.caloriesBurned)),
+        netCalories: Math.round(asNumber(calorieSummary?.netCalories)),
+        totalProtein: Math.round(asNumber(calorieSummary?.totalProtein)),
+        totalCarbs: Math.round(asNumber(calorieSummary?.totalCarbs)),
+        totalFat: Math.round(asNumber(calorieSummary?.totalFat)),
+        workoutMinutes: Math.round(asNumber(calorieSummary?.workoutMinutes)),
+        targetCalories: Math.round(asNumber(calorieSummary?.targetCalories, 2000)),
+        remainingCalories: Math.round(asNumber(calorieSummary?.remainingCalories)),
+        progressPercentage: asNumber(calorieSummary?.progressPercentage)
+      };
+    }
+
+    return {
+      caloriesConsumed: 0,
+      caloriesBurned: 0,
+      netCalories: 0,
+      totalProtein: 0,
+      totalCarbs: 0,
+      totalFat: 0,
+      workoutMinutes: 0,
+      targetCalories: 2000,
+      remainingCalories: 2000,
+      progressPercentage: 0
+    };
   }, [allMeals, allWorkoutSessions, calorieSummary]);
 
   // Debug effect - log when dashboard summary changes
@@ -637,6 +734,110 @@ const Dashboard = () => {
     () => buildChartDataByPeriod(allWorkoutSessions, allMeals, chartPeriod, chartMetric, activeWorkoutType),
     [allWorkoutSessions, allMeals, chartPeriod, chartMetric, activeWorkoutType]
   );
+
+  const dashboardWellness = useMemo(() => {
+    const todayKey = getLocalDateKey(new Date());
+    const recentKeys = getRecentDateKeys(14);
+
+    const workoutDays = new Set(
+      allWorkoutSessions
+        .map((session) => getLocalDateKey(session?.completedAt || session?.createdAt || session?.sessionDate))
+        .filter(Boolean)
+    );
+
+    const sleepByDay = new Map();
+    sleepLogs.forEach((log) => {
+      const key = getLocalDateKey(log?.sleepDate);
+      if (!key) return;
+      if (!sleepByDay.has(key)) {
+        sleepByDay.set(key, log);
+      }
+    });
+
+    const computeStreak = (predicate) => {
+      let streak = 0;
+      for (let i = recentKeys.length - 1; i >= 0; i -= 1) {
+        const key = recentKeys[i];
+        if (!predicate(key)) break;
+        streak += 1;
+      }
+      return streak;
+    };
+
+    const workoutStreak = computeStreak((key) => workoutDays.has(key));
+    const hydrationStreak = computeStreak((key) => {
+      const log = sleepByDay.get(key);
+      const waterLiters = asNumber(log?.waterLiters, asNumber(log?.waterGlasses, log?.water_glasses) * 0.25);
+      return waterLiters >= 2;
+    });
+    const sleepStreak = computeStreak((key) => {
+      const log = sleepByDay.get(key);
+      return asNumber(log?.hoursSlept, log?.hours_slept) >= 7;
+    });
+
+    const todaySleepLog = sleepByDay.get(todayKey) || sleepLogs[0] || null;
+    const todaySleepHours = asNumber(todaySleepLog?.hoursSlept, todaySleepLog?.hours_slept);
+    const todayWaterLiters = asNumber(todaySleepLog?.waterLiters, asNumber(todaySleepLog?.waterGlasses, todaySleepLog?.water_glasses) * 0.25);
+    const todaySteps = asNumber(
+      latestHealthMetrics?.stepsCount,
+      latestHealthMetrics?.stepCount,
+      latestHealthMetrics?.steps,
+      latestHealthMetrics?.stepsTaken
+    );
+
+    const stepsTarget = asNumber(latestHealthMetrics?.dailyStepGoal, 9000);
+    const caloriesConsumed = asNumber(dashboardSummary?.caloriesConsumed);
+    const caloriesTarget = Math.max(asNumber(dashboardSummary?.targetCalories, 2000), 1);
+
+    const stepScore = clamp((todaySteps / Math.max(stepsTarget, 1)) * 100, 0, 100);
+    const sleepScore = clamp((todaySleepHours / 7) * 100, 0, 100);
+    const waterScore = clamp((todayWaterLiters / 2) * 100, 0, 100);
+    const calorieDelta = Math.abs(caloriesConsumed - caloriesTarget);
+    const calorieScore = clamp((1 - (calorieDelta / caloriesTarget)) * 100, 0, 100);
+
+    const healthScore = Math.round(
+      (stepScore * 0.30)
+      + (sleepScore * 0.25)
+      + (waterScore * 0.20)
+      + (calorieScore * 0.25)
+    );
+
+    return {
+      streaks: {
+        workout: workoutStreak,
+        hydration: hydrationStreak,
+        sleep: sleepStreak
+      },
+      healthScore,
+      components: {
+        steps: Math.round(stepScore),
+        sleep: Math.round(sleepScore),
+        water: Math.round(waterScore),
+        calories: Math.round(calorieScore)
+      }
+    };
+  }, [allWorkoutSessions, sleepLogs, latestHealthMetrics, dashboardSummary]);
+
+  const workoutPlanAnalytics = useMemo(() => {
+    const recentKeys = getRecentDateKeys(30);
+    const recentSet = new Set(recentKeys);
+
+    const recentSessions = allWorkoutSessions.filter((session) => {
+      const key = getLocalDateKey(session?.completedAt || session?.createdAt || session?.sessionDate);
+      return Boolean(key && recentSet.has(key));
+    });
+
+    const frequency = recentSessions.length;
+    const totalDurationMinutes = Math.round(
+      recentSessions.reduce((sum, session) => sum + asNumber(session?.durationMinutes, session?.duration), 0)
+    );
+
+    return {
+      frequency,
+      totalDurationMinutes,
+      streak: dashboardWellness.streaks.workout
+    };
+  }, [allWorkoutSessions, dashboardWellness.streaks.workout]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -1488,6 +1689,63 @@ const Dashboard = () => {
           </div>
         </section>
 
+        <section className="wellnest-surface p-6 md:p-8 mt-10">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900 wellnest-section-title">🔥 Consistency & Health Score</h2>
+              <p className="text-sm text-gray-600 mt-1">Gamified momentum from workouts, hydration, sleep, and calorie balance.</p>
+            </div>
+            <button
+              onClick={() => navigate('/fitness-goals')}
+              className="px-4 py-2 rounded-lg border border-primary-200 bg-primary-50 text-primary-700 text-sm font-semibold hover:bg-primary-100 transition-colors"
+            >
+              Open Fitness Goals →
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div className="rounded-2xl border border-orange-100 bg-orange-50 p-5">
+              <p className="text-sm text-orange-700 font-semibold">🔥 Workout Streak</p>
+              <p className="text-3xl font-bold text-slate-900 mt-2">{dashboardWellness.streaks.workout} days</p>
+            </div>
+            <div className="rounded-2xl border border-sky-100 bg-sky-50 p-5">
+              <p className="text-sm text-sky-700 font-semibold">💧 Hydration Streak</p>
+              <p className="text-3xl font-bold text-slate-900 mt-2">{dashboardWellness.streaks.hydration} days</p>
+            </div>
+            <div className="rounded-2xl border border-violet-100 bg-violet-50 p-5">
+              <p className="text-sm text-violet-700 font-semibold">😴 Sleep Goal Streak</p>
+              <p className="text-3xl font-bold text-slate-900 mt-2">{dashboardWellness.streaks.sleep} days</p>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+              <div>
+                <p className="text-xs uppercase tracking-wide text-slate-500">Today&apos;s Health Score</p>
+                <h3 className="text-3xl font-bold text-slate-900 mt-1">
+                  {dashboardWellness.healthScore} / 100 {dashboardWellness.healthScore >= 80 ? '🟢' : dashboardWellness.healthScore >= 60 ? '🟡' : '🔴'}
+                </h3>
+                <p className="text-xs text-slate-500 mt-2">Formula: 30% Steps + 25% Sleep + 20% Water + 25% Calories balance</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mt-4">
+              {[
+                { key: 'steps', label: 'Steps' },
+                { key: 'sleep', label: 'Sleep' },
+                { key: 'water', label: 'Water' },
+                { key: 'calories', label: 'Calories' }
+              ].map((item) => (
+                <div key={item.key} className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                  <p className="text-xs uppercase tracking-wide text-slate-500">{item.label}</p>
+                  <p className="text-base font-semibold text-slate-900 mt-1">{getScoreLabel(dashboardWellness.components[item.key])}</p>
+                  <p className="text-xs text-slate-500 mt-1">{dashboardWellness.components[item.key]}/100</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
         <section id="analytics-graph-section" className="wellnest-surface p-8 mt-10">
           <div className="flex flex-col gap-4 border-b border-gray-100 pb-5 mb-8">
             <div className="flex items-center justify-between gap-4">
@@ -1954,6 +2212,15 @@ const Dashboard = () => {
             >
               + New Workout
             </button>
+          </div>
+
+          <div className="mb-6 rounded-2xl border border-slate-200 bg-slate-50 p-5 max-w-md">
+            <h3 className="text-2xl font-bold text-gray-900 mb-3">Workout Analytics</h3>
+            <div className="space-y-1 text-gray-700 text-sm">
+              <p>💪 Frequency: <span className="font-semibold">{workoutPlanAnalytics.frequency} workouts</span></p>
+              <p>⏱️ Total Duration: <span className="font-semibold">{workoutPlanAnalytics.totalDurationMinutes} mins</span></p>
+              <p>🔥 Streak: <span className="font-semibold">{workoutPlanAnalytics.streak} days</span></p>
+            </div>
           </div>
 
           {isLoadingWorkouts ? (

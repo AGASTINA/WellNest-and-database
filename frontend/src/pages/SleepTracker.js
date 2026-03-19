@@ -29,6 +29,17 @@ const shiftLocalDate = (baseDate, dayOffset) => {
   return d;
 };
 
+const normalizeDateKey = (value) => {
+  if (!value) return null;
+  const raw = String(value);
+  const direct = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (direct) return direct[1];
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return getLocalDateString(parsed);
+};
+
 const SleepTracker = () => {
   const navigate = useNavigate();
   const [sleepLogs, setSleepLogs] = useState([]);
@@ -97,7 +108,7 @@ const SleepTracker = () => {
         const dateStr = getLocalDateString(d);
         const dayName = days[d.getDay()];
 
-        const log = weeklyLogs.find(l => l.sleepDate === dateStr);
+        const log = weeklyLogs.find(l => normalizeDateKey(l.sleepDate) === dateStr);
         last7Days.push({
           day: dayName,
           date: dateStr,

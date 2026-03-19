@@ -1,10 +1,20 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import confetti from 'canvas-confetti';
 import { getUserGoals, createGoal, updateGoal, deleteGoal } from '../utils/fitnessGoalsApi';
 import { getLatestHealthMetrics, recordHealthMetrics, getHealthMetricsByDateRange } from '../utils/medicalApi';
 import { getSleepByDate, getUserSleepLogs } from '../utils/sleepApi';
 import { getCalorieSummary, getUserSessions } from '../utils/calorieApi';
 import PageHeader from '../components/PageHeader';
+import {
+    ResponsiveContainer,
+    LineChart,
+    Line,
+    XAxis,
+    YAxis,
+    CartesianGrid,
+    Tooltip as RechartsTooltip,
+    Legend
+} from 'recharts';
 
 const asNumber = (...values) => {
     for (const value of values) {
@@ -37,6 +47,54 @@ const parseLocalDateFromYyyyMmDd = (value) => {
     if (!match) return null;
     const [, y, m, d] = match;
     return new Date(Number(y), Number(m) - 1, Number(d));
+};
+
+const clamp = (value, min, max) => Math.max(min, Math.min(value, max));
+
+const formatLocalDateKey = (value) => {
+    if (!value) return null;
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return null;
+    const y = parsed.getFullYear();
+    const m = String(parsed.getMonth() + 1).padStart(2, '0');
+    const d = String(parsed.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+};
+
+const getRecentDayKeys = (days) => {
+    const list = [];
+    const now = new Date();
+    for (let index = days - 1; index >= 0; index -= 1) {
+        const day = new Date(now);
+        day.setDate(now.getDate() - index);
+        const y = day.getFullYear();
+        const m = String(day.getMonth() + 1).padStart(2, '0');
+        const d = String(day.getDate()).padStart(2, '0');
+        list.push(`${y}-${m}-${d}`);
+    }
+    return list;
+};
+
+const computeCurrentStreak = (items, predicate) => {
+    let streak = 0;
+    for (let index = items.length - 1; index >= 0; index -= 1) {
+        if (!predicate(items[index])) break;
+        streak += 1;
+    }
+    return streak;
+};
+
+const normalizeWorkoutType = (value) => {
+    if (!value) return 'Other';
+    const cleaned = String(value).trim();
+    if (!cleaned) return 'Other';
+    return cleaned;
+};
+
+const getScoreLabel = (value) => {
+    if (value >= 80) return 'Good';
+    if (value >= 60) return 'Average';
+    return 'Low';
 };
 
 const statusLegend = [
@@ -114,6 +172,17 @@ const FitnessGoals = () => {
         caloriesConsumed: 0,
         bmi: 0
     });
+    const [weeklyAnalytics, setWeeklyAnalytics] = useState({
+        trend: [],
+        streaks: {
+            workout: 0,
+            hydration: 0,
+            sleep: 0
+        },
+        workoutsPerWeek: 0,
+        totalWorkoutMinutes: 0,
+        exerciseDistribution: []
+    });
     const [showDailyUpdate, setShowDailyUpdate] = useState(false);
     const [dailyUpdate, setDailyUpdate] = useState({
         stepsCount: '',
@@ -126,22 +195,26 @@ const FitnessGoals = () => {
             // Use local date (not UTC) to avoid day-boundary mismatches for IST users
             const now = new Date();
             const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-            const todayStart = `${today}T00:00:00`;
             const todayEnd = `${today}T23:59:59`;
+            const recentDayKeys = getRecentDayKeys(7);
+            const weekStart = `${recentDayKeys[0]}T00:00:00`;
 
-            const [healthResult, todayMetricsResult, sleepResult, sleepLogsResult, sessionsResult, caloriesResult] = await Promise.allSettled([
+            const safeCalorieSummariesPromise = Promise.all(
+                recentDayKeys.map((day) => getCalorieSummary(day).catch(() => null))
+            );
+
+            const [healthResult, weekMetricsResult, sleepResult, sleepLogsResult, sessionsResult, caloriesByDayResult] = await Promise.allSettled([
                 getLatestHealthMetrics(),
-                getHealthMetricsByDateRange(todayStart, todayEnd),
+                getHealthMetricsByDateRange(weekStart, todayEnd),
                 getSleepByDate(today),
                 getUserSleepLogs(),
                 getUserSessions(),
-                getCalorieSummary(today)
+                safeCalorieSummariesPromise
             ]);
 
             const health = healthResult.status === 'fulfilled' ? healthResult.value : null;
-            // All health metric records saved today — use highest steps/workout from these
-            const todayMetrics = todayMetricsResult.status === 'fulfilled' && Array.isArray(todayMetricsResult.value)
-                ? todayMetricsResult.value
+            const weekMetrics = weekMetricsResult.status === 'fulfilled' && Array.isArray(weekMetricsResult.value)
+                ? weekMetricsResult.value
                 : [];
             const sleepLog = sleepResult.status === 'fulfilled' ? sleepResult.value : null;
             const sleepLogs = sleepLogsResult.status === 'fulfilled' && Array.isArray(sleepLogsResult.value)
@@ -150,28 +223,101 @@ const FitnessGoals = () => {
             const sessions = sessionsResult.status === 'fulfilled' && Array.isArray(sessionsResult.value)
                 ? sessionsResult.value
                 : [];
-            const calorieSummary = caloriesResult.status === 'fulfilled' ? caloriesResult.value : null;
+            const calorieSummaries = caloriesByDayResult.status === 'fulfilled' && Array.isArray(caloriesByDayResult.value)
+                ? caloriesByDayResult.value
+                : [];
 
-            // Best steps from today's records (covers multiple entries in same day)
-            const todayBestSteps = todayMetrics.reduce(
-                (max, m) => Math.max(max, asNumber(m.stepsCount, m.stepCount, m.steps)),
-                0
+            const daySet = new Set(recentDayKeys);
+            const weeklySessions = sessions.filter((session) => {
+                const dateValue = session?.completedAt || session?.createdAt || session?.sessionDate;
+                const key = formatLocalDateKey(dateValue);
+                return Boolean(key && daySet.has(key));
+            });
+
+            const weeklyTrend = recentDayKeys.map((day, idx) => {
+                const dayMetrics = weekMetrics.filter((metric) => {
+                    const dateValue = metric?.recordedAt || metric?.createdAt || metric?.recordDate || metric?.metricDate;
+                    return isSameDay(dateValue, day);
+                });
+
+                const daySleepLog = sleepLogs.find((log) => isSameDay(log?.sleepDate, day));
+
+                const sessionsForDay = weeklySessions.filter((session) => {
+                    const dateValue = session?.completedAt || session?.createdAt || session?.sessionDate;
+                    return isSameDay(dateValue, day);
+                });
+
+                const steps = dayMetrics.reduce(
+                    (max, metric) => Math.max(max, asNumber(metric?.stepsCount, metric?.stepCount, metric?.steps)),
+                    0
+                );
+
+                const workoutMinutesFromMetrics = dayMetrics.reduce(
+                    (max, metric) => Math.max(max, asNumber(metric?.workoutDurationMinutes, metric?.workoutMinutes)),
+                    0
+                );
+
+                const sessionWorkoutMinutes = sessionsForDay.reduce(
+                    (sum, session) => sum + asNumber(session?.durationMinutes, session?.duration, session?.workoutDurationMinutes),
+                    0
+                );
+
+                const workoutMinutes = Math.max(workoutMinutesFromMetrics, sessionWorkoutMinutes);
+                const sleepHours = asNumber(daySleepLog?.hoursSlept, daySleepLog?.hours_slept);
+                const waterLiters = asNumber(daySleepLog?.waterGlasses, daySleepLog?.water_glasses) * 0.25;
+                const calorieSummary = calorieSummaries[idx] || null;
+
+                return {
+                    day,
+                    label: new Date(`${day}T00:00:00`).toLocaleDateString(undefined, { weekday: 'short' }),
+                    steps,
+                    sleepHours,
+                    waterLiters,
+                    workoutMinutes,
+                    workoutCount: sessionsForDay.length,
+                    caloriesConsumed: asNumber(
+                        calorieSummary?.caloriesConsumed,
+                        calorieSummary?.totalCalories,
+                        calorieSummary?.consumedCalories
+                    ),
+                    caloriesTarget: asNumber(
+                        calorieSummary?.targetCalories,
+                        calorieSummary?.calorieTarget,
+                        calorieSummary?.recommendedCalories
+                    )
+                };
+            });
+
+            const todayTrend = weeklyTrend[weeklyTrend.length - 1] || {
+                steps: 0,
+                sleepHours: 0,
+                waterLiters: 0,
+                workoutMinutes: 0,
+                caloriesConsumed: 0
+            };
+
+            const workoutTypeMap = new Map();
+            weeklySessions.forEach((session) => {
+                const type = normalizeWorkoutType(session?.workoutType || session?.exerciseType || session?.name);
+                const minutes = asNumber(session?.durationMinutes, session?.duration, session?.workoutDurationMinutes);
+                const existing = workoutTypeMap.get(type) || { type, count: 0, minutes: 0 };
+                existing.count += 1;
+                existing.minutes += minutes;
+                workoutTypeMap.set(type, existing);
+            });
+
+            const exerciseDistribution = Array.from(workoutTypeMap.values())
+                .sort((a, b) => b.minutes - a.minutes)
+                .slice(0, 5);
+
+            const steps = Math.max(
+                todayTrend.steps,
+                asNumber(health?.stepsCount, health?.stepCount, health?.steps_count, health?.steps, health?.stepsTaken)
             );
-            const steps = todayBestSteps > 0
-                ? todayBestSteps
-                : asNumber(health?.stepsCount, health?.stepCount, health?.steps_count, health?.steps, health?.stepsTaken);
 
-            // Best workout minutes from today's health metric records
-            const todayHealthWorkoutMinutes = todayMetrics.reduce(
-                (max, m) => Math.max(max, asNumber(m.workoutDurationMinutes, m.workoutMinutes)),
-                0
-            );
-
-            const workoutMinutesFromHealth = Math.max(
-                todayHealthWorkoutMinutes,
+            const workoutMinutesFromLatestHealth = asNumber(
                 asNumber(health?.workoutDurationMinutes, health?.workout_duration_minutes, health?.workoutMinutes, health?.durationMinutes)
             );
-
             const todayDate = parseLocalDateFromYyyyMmDd(today);
             const recentSleepLog = sleepLogs.find((log) => {
                 const logDate = parseLocalDateFromYyyyMmDd(log?.sleepDate);
@@ -190,18 +336,7 @@ const FitnessGoals = () => {
             const waterGlasses = asNumber(effectiveSleepLog?.waterGlasses, effectiveSleepLog?.water_glasses);
             const waterLiters = waterGlasses * 0.25;
 
-            const todaysWorkoutMinutes = sessions
-                .filter((session) => {
-                    const dateValue = session?.completedAt || session?.createdAt || session?.sessionDate;
-                    return isSameDay(dateValue, today);
-                })
-                .reduce(
-                    (sum, session) =>
-                        sum + asNumber(session?.durationMinutes, session?.duration, session?.workoutDurationMinutes),
-                    0
-                );
-
-            const workoutMinutes = Math.max(workoutMinutesFromHealth, todaysWorkoutMinutes);
+            const workoutMinutes = Math.max(todayTrend.workoutMinutes, workoutMinutesFromLatestHealth);
 
             const weight = asNumber(health?.weight);
             const heightCm = asNumber(health?.height);
@@ -215,8 +350,20 @@ const FitnessGoals = () => {
                 sleepHours,
                 waterLiters,
                 workoutMinutes,
-                caloriesConsumed: asNumber(calorieSummary?.caloriesConsumed),
+                caloriesConsumed: todayTrend.caloriesConsumed,
                 bmi
+            });
+
+            setWeeklyAnalytics({
+                trend: weeklyTrend,
+                streaks: {
+                    workout: computeCurrentStreak(weeklyTrend, (day) => day.workoutMinutes > 0),
+                    hydration: computeCurrentStreak(weeklyTrend, (day) => day.waterLiters >= 2),
+                    sleep: computeCurrentStreak(weeklyTrend, (day) => day.sleepHours >= 7)
+                },
+                workoutsPerWeek: weeklySessions.length,
+                totalWorkoutMinutes: weeklyTrend.reduce((sum, day) => sum + day.workoutMinutes, 0),
+                exerciseDistribution
             });
         } catch (error) {
             console.error('Error fetching today stats:', error);
@@ -569,6 +716,57 @@ const FitnessGoals = () => {
     const readinessScore = Math.round(readinessSignals.reduce((sum, value) => sum + value, 0) / readinessSignals.length);
     const readinessState = getMetricState(readinessScore, 100);
 
+    const scoredTrend = useMemo(() => {
+        return (weeklyAnalytics.trend || []).map((day) => {
+            const stepsTarget = Math.max(effectiveStepsTarget || 9000, 1);
+            const caloriesTarget = Math.max(day.caloriesTarget || activeGoal?.targetCalories || 2000, 1);
+
+            const stepsScore = clamp((day.steps / stepsTarget) * 100, 0, 100);
+            const sleepScore = clamp((day.sleepHours / 7) * 100, 0, 100);
+            const waterScore = clamp((day.waterLiters / 2) * 100, 0, 100);
+            const calorieDelta = Math.abs(day.caloriesConsumed - caloriesTarget);
+            const calorieScore = clamp((1 - (calorieDelta / caloriesTarget)) * 100, 0, 100);
+
+            const score = Math.round(
+                (stepsScore * 0.30)
+                + (sleepScore * 0.25)
+                + (waterScore * 0.20)
+                + (calorieScore * 0.25)
+            );
+
+            return {
+                ...day,
+                healthScore: score,
+                stepScore: Math.round(stepsScore),
+                sleepScore: Math.round(sleepScore),
+                waterScore: Math.round(waterScore),
+                calorieScore: Math.round(calorieScore)
+            };
+        });
+    }, [weeklyAnalytics.trend, effectiveStepsTarget, activeGoal?.targetCalories]);
+
+    const todaysScoredMetrics = scoredTrend[scoredTrend.length - 1] || {
+        healthScore: 0,
+        stepScore: 0,
+        sleepScore: 0,
+        waterScore: 0,
+        calorieScore: 0,
+        caloriesTarget: activeGoal?.targetCalories || 2000
+    };
+    const healthScoreTone = todaysScoredMetrics.healthScore >= 80
+        ? '🟢'
+        : todaysScoredMetrics.healthScore >= 60
+            ? '🟡'
+            : '🔴';
+
+    const workoutDualLineData = scoredTrend.map((day) => ({
+        name: day.label,
+        workoutMinutes: day.workoutMinutes,
+        workoutCount: day.workoutCount
+    }));
+
+    const workoutDaysCompleted = scoredTrend.filter((day) => day.workoutMinutes > 0).length;
+
     if (loading) {
         return <div className="flex justify-center items-center h-64">Loading...</div>;
     }
@@ -905,6 +1103,156 @@ const FitnessGoals = () => {
                             </div>
                         );
                     })}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                    {[
+                        {
+                            title: 'Workout Streak',
+                            icon: '🔥',
+                            days: weeklyAnalytics.streaks.workout,
+                            note: 'Consecutive days with workout minutes'
+                        },
+                        {
+                            title: 'Hydration Streak',
+                            icon: '💧',
+                            days: weeklyAnalytics.streaks.hydration,
+                            note: 'Consecutive days at 2L+ hydration'
+                        },
+                        {
+                            title: 'Sleep Goal Streak',
+                            icon: '😴',
+                            days: weeklyAnalytics.streaks.sleep,
+                            note: 'Consecutive nights with 7h+ sleep'
+                        }
+                    ].map((streak) => (
+                        <div key={streak.title} className="bg-white rounded-2xl shadow-md border border-slate-100 p-5">
+                            <p className="text-sm text-slate-500">{streak.title}</p>
+                            <p className="mt-2 text-3xl font-bold text-slate-900">{streak.icon} {streak.days} day{streak.days === 1 ? '' : 's'}</p>
+                            <p className="mt-2 text-xs text-slate-500">{streak.note}</p>
+                        </div>
+                    ))}
+                </div>
+
+                <div className="bg-white rounded-3xl shadow-md border border-slate-100 p-6 mb-8">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                        <div>
+                            <p className="text-xs uppercase tracking-wide text-slate-500">Today&apos;s Health Score</p>
+                            <h2 className="text-3xl font-bold text-slate-900 mt-1">
+                                {todaysScoredMetrics.healthScore} / 100 <span className="text-2xl">{healthScoreTone}</span>
+                            </h2>
+                            <p className="text-sm text-slate-500 mt-2">
+                                Formula: 30% Steps + 25% Sleep + 20% Water + 25% Calories balance
+                            </p>
+                        </div>
+                        <div className="text-sm text-slate-600">
+                            <p>Calories target used: <span className="font-semibold">{Math.round(todaysScoredMetrics.caloriesTarget || activeGoal?.targetCalories || 2000)} kcal</span></p>
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mt-5">
+                        {[
+                            { label: 'Steps', score: todaysScoredMetrics.stepScore },
+                            { label: 'Sleep', score: todaysScoredMetrics.sleepScore },
+                            { label: 'Water', score: todaysScoredMetrics.waterScore },
+                            { label: 'Calories', score: todaysScoredMetrics.calorieScore }
+                        ].map((part) => (
+                            <div key={part.label} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                                <p className="text-xs uppercase tracking-wide text-slate-500">{part.label}</p>
+                                <p className="text-lg font-semibold text-slate-900 mt-1">{getScoreLabel(part.score)}</p>
+                                <p className="text-xs text-slate-500 mt-1">{part.score}/100</p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                <div className="bg-white rounded-3xl shadow-md border border-slate-100 p-6 mb-8">
+                    <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6 mb-5">
+                        <div>
+                            <h2 className="text-xl font-semibold text-slate-900">Workout Frequency & Duration Analytics</h2>
+                            <p className="text-sm text-slate-500 mt-1">Dual-line trend for last 7 days: workout sessions and total workout minutes.</p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3 min-w-[220px]">
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                                <p className="text-xs text-slate-500">Workouts this week</p>
+                                <p className="text-xl font-bold text-slate-900">{weeklyAnalytics.workoutsPerWeek}</p>
+                            </div>
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                                <p className="text-xs text-slate-500">Total workout minutes</p>
+                                <p className="text-xl font-bold text-slate-900">{weeklyAnalytics.totalWorkoutMinutes}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="h-72 mb-6">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={workoutDualLineData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                                <XAxis dataKey="name" stroke="#64748b" />
+                                <YAxis yAxisId="left" stroke="#2563eb" allowDecimals={false} />
+                                <YAxis yAxisId="right" orientation="right" stroke="#f97316" allowDecimals={false} />
+                                <RechartsTooltip />
+                                <Legend />
+                                <Line
+                                    yAxisId="left"
+                                    type="monotone"
+                                    dataKey="workoutCount"
+                                    name="Workouts"
+                                    stroke="#2563eb"
+                                    strokeWidth={3}
+                                    dot={{ r: 4 }}
+                                    activeDot={{ r: 6 }}
+                                />
+                                <Line
+                                    yAxisId="right"
+                                    type="monotone"
+                                    dataKey="workoutMinutes"
+                                    name="Workout Minutes"
+                                    stroke="#f97316"
+                                    strokeWidth={3}
+                                    dot={{ r: 4 }}
+                                    activeDot={{ r: 6 }}
+                                />
+                            </LineChart>
+                        </ResponsiveContainer>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <div className="rounded-2xl border border-slate-200 p-4">
+                            <p className="text-sm font-semibold text-slate-800">Exercise Type Distribution (Top 5)</p>
+                            <div className="space-y-3 mt-3">
+                                {weeklyAnalytics.exerciseDistribution.length === 0 ? (
+                                    <p className="text-sm text-slate-500">No workouts logged this week yet.</p>
+                                ) : (
+                                    weeklyAnalytics.exerciseDistribution.map((item) => {
+                                        const width = weeklyAnalytics.totalWorkoutMinutes > 0
+                                            ? clamp((item.minutes / weeklyAnalytics.totalWorkoutMinutes) * 100, 0, 100)
+                                            : 0;
+                                        return (
+                                            <div key={item.type}>
+                                                <div className="flex justify-between text-xs text-slate-600 mb-1">
+                                                    <span>{item.type}</span>
+                                                    <span>{item.count} sessions · {item.minutes} min</span>
+                                                </div>
+                                                <div className="h-2 rounded-full bg-slate-100">
+                                                    <div className="h-2 rounded-full bg-indigo-500" style={{ width: `${width}%` }} />
+                                                </div>
+                                            </div>
+                                        );
+                                    })
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="rounded-2xl border border-slate-200 p-4">
+                            <p className="text-sm font-semibold text-slate-800">Weekly activity snapshot</p>
+                            <div className="mt-3 space-y-2 text-sm text-slate-600">
+                                <p>✅ Workout days completed: <span className="font-semibold text-slate-900">{workoutDaysCompleted} / 7</span></p>
+                                <p>🔥 Current workout streak: <span className="font-semibold text-slate-900">{weeklyAnalytics.streaks.workout} days</span></p>
+                                <p>💧 Current hydration streak: <span className="font-semibold text-slate-900">{weeklyAnalytics.streaks.hydration} days</span></p>
+                                <p>😴 Current sleep streak: <span className="font-semibold text-slate-900">{weeklyAnalytics.streaks.sleep} days</span></p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <div className={`rounded-2xl border px-4 py-3 mb-8 text-sm font-medium ${stepCompletionPercentage >= 100 ? 'border-green-200 bg-green-50 text-green-800' : stepCompletionPercentage >= 60 ? 'border-yellow-200 bg-yellow-50 text-yellow-800' : 'border-blue-200 bg-blue-50 text-blue-800'}`}>

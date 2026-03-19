@@ -3,10 +3,12 @@ package com.wellnest.controller;
 import com.wellnest.dto.WorkoutPlanDto;
 import com.wellnest.dto.MessageResponse;
 import com.wellnest.service.WorkoutPlanService;
-import com.wellnest.service.JwtService;
+import com.wellnest.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -14,36 +16,23 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/workout-plans")
-@CrossOrigin(origins = "http://localhost:3000")
+@CrossOrigin(origins = {"http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000", "http://127.0.0.1:3001"})
 public class WorkoutPlanController {
 
     @Autowired
     private WorkoutPlanService workoutPlanService;
 
     @Autowired
-    private JwtService jwtService;
+    private UserService userService;
 
-    /**
-     * Extract user ID from JWT token in Authorization header
-     */
-    private Long extractUserIdFromRequest(HttpServletRequest request) {
-        String authHeader = request.getHeader("Authorization");
-        
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            throw new RuntimeException("Missing or invalid authorization header");
+    private Long extractUserIdFromSecurityContext() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated() || "anonymousUser".equals(authentication.getName())) {
+            throw new RuntimeException("Session expired. Please log in again.");
         }
-        
-        String token = authHeader.substring(7); // Remove "Bearer " prefix
-        
-        try {
-            Long userId = jwtService.extractUserId(token);
-            if (userId == null) {
-                throw new RuntimeException("User ID not found in token");
-            }
-            return userId;
-        } catch (Exception e) {
-            throw new RuntimeException("Invalid or expired token: " + e.getMessage());
-        }
+
+        String email = authentication.getName();
+        return userService.getUserProfile(email).getId();
     }
 
     @PostMapping
@@ -51,7 +40,7 @@ public class WorkoutPlanController {
             @RequestBody WorkoutPlanDto workoutPlanDto,
             HttpServletRequest request) {
         try {
-            Long userId = extractUserIdFromRequest(request);
+            Long userId = extractUserIdFromSecurityContext();
             WorkoutPlanDto createdPlan = workoutPlanService.createWorkoutPlan(userId, workoutPlanDto);
             return ResponseEntity.status(HttpStatus.CREATED).body(createdPlan);
         } catch (Exception e) {
@@ -62,7 +51,7 @@ public class WorkoutPlanController {
     @GetMapping
     public ResponseEntity<?> getUserWorkoutPlans(HttpServletRequest request) {
         try {
-            Long userId = extractUserIdFromRequest(request);
+            Long userId = extractUserIdFromSecurityContext();
             List<WorkoutPlanDto> plans = workoutPlanService.getUserWorkoutPlans(userId);
             return ResponseEntity.ok(plans);
         } catch (Exception e) {
@@ -73,7 +62,7 @@ public class WorkoutPlanController {
     @GetMapping("/active")
     public ResponseEntity<?> getActiveWorkoutPlans(HttpServletRequest request) {
         try {
-            Long userId = extractUserIdFromRequest(request);
+            Long userId = extractUserIdFromSecurityContext();
             List<WorkoutPlanDto> plans = workoutPlanService.getActiveWorkoutPlans(userId);
             return ResponseEntity.ok(plans);
         } catch (Exception e) {
@@ -86,7 +75,7 @@ public class WorkoutPlanController {
             @PathVariable Long id,
             HttpServletRequest request) {
         try {
-            Long userId = extractUserIdFromRequest(request);
+            Long userId = extractUserIdFromSecurityContext();
             WorkoutPlanDto plan = workoutPlanService.getWorkoutPlanById(id, userId);
             return ResponseEntity.ok(plan);
         } catch (RuntimeException e) {
@@ -103,7 +92,7 @@ public class WorkoutPlanController {
             @RequestBody WorkoutPlanDto workoutPlanDto,
             HttpServletRequest request) {
         try {
-            Long userId = extractUserIdFromRequest(request);
+            Long userId = extractUserIdFromSecurityContext();
             WorkoutPlanDto updatedPlan = workoutPlanService.updateWorkoutPlan(id, userId, workoutPlanDto);
             return ResponseEntity.ok(updatedPlan);
         } catch (RuntimeException e) {
@@ -119,7 +108,7 @@ public class WorkoutPlanController {
             @PathVariable Long id,
             HttpServletRequest request) {
         try {
-            Long userId = extractUserIdFromRequest(request);
+            Long userId = extractUserIdFromSecurityContext();
             workoutPlanService.deleteWorkoutPlan(id, userId);
             return ResponseEntity.noContent().build();
         } catch (RuntimeException e) {
@@ -135,7 +124,7 @@ public class WorkoutPlanController {
             @PathVariable Long id,
             HttpServletRequest request) {
         try {
-            Long userId = extractUserIdFromRequest(request);
+            Long userId = extractUserIdFromSecurityContext();
             WorkoutPlanDto completedPlan = workoutPlanService.completeWorkoutPlan(id, userId);
             return ResponseEntity.ok(completedPlan);
         } catch (RuntimeException e) {

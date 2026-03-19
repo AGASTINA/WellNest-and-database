@@ -4,25 +4,33 @@ const API_BASE_URL = 'http://localhost:3000/api/workout-plans';
 
 const getHeaders = () => {
   const token = getToken();
-  return {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${token}`
+  const headers = {
+    'Content-Type': 'application/json'
   };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  return headers;
 };
 
 const handleResponse = async (response) => {
-  // Try to parse JSON first
-  let data;
+  let text = '';
+  let data = {};
   try {
-    data = await response.json();
+    text = await response.text();
+    data = text ? JSON.parse(text) : {};
   } catch (e) {
-    // If JSON parsing fails, return the text
-    const text = await response.text();
     console.error('Response is not valid JSON:', text);
-    throw new Error('Invalid server response: ' + text.substring(0, 100));
+    if (!response.ok) {
+      throw new Error(`API Error: ${response.status}`);
+    }
+    throw new Error('Invalid server response');
   }
 
   if (!response.ok) {
+    if (response.status === 401 || response.status === 403) {
+      throw new Error('Session expired. Please log in again.');
+    }
     throw new Error(data.message || `API Error: ${response.status}`);
   }
   return data;
