@@ -12,7 +12,7 @@ import workoutApi from '../utils/workoutApi';
 import { getLatestHealthMetrics, getUserConsultations, getUserMedicalRecords } from '../utils/medicalApi';
 import { deleteWorkoutSession, getCalorieSummary, getUserSessions, updateWorkoutSession } from '../utils/calorieApi';
 import { getUserMeals } from '../utils/mealsApi';
-import { getUserSleepLogs } from '../utils/sleepApi';
+import { getUserSleepLogs, logSleep, updateSleep, getSleepByDate } from '../utils/sleepApi';
 import BMICalculator from '../components/BMICalculator';
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import {
@@ -219,7 +219,8 @@ const dashboardHeaderTabs = [
   { label: 'Wellness Tools', sectionId: 'wellness-tools-section', icon: '⚡' },
   { label: 'BMI + Plans', sectionId: 'bmi-calculator-section', icon: '🎯' },
   { label: 'Progress (Graphs)', sectionId: 'analytics-graph-section', icon: '📈' },
-  { label: 'Trainers', navigateTo: '/trainers', icon: '💪' }
+  { label: 'Trainers', navigateTo: '/trainers', icon: '💪' },
+  { label: 'Blog', navigateTo: '/community-blog', icon: '📝' }
 ];
 
 const dashboardBackgroundEmojis = [
@@ -485,6 +486,8 @@ const Dashboard = () => {
   // Refs to fix closure issue in setInterval
   const waterReminderEnabledRef = useRef(waterReminderEnabled);
   const sleepReminderEnabledRef = useRef(sleepReminderEnabled);
+  const waterTimerRef = useRef(null);
+  const sleepTimerRef = useRef(null);
 
   // Keep refs in sync with state
   useEffect(() => {
@@ -512,7 +515,7 @@ const Dashboard = () => {
         }
 
         const fetchProfile = async () => {
-          const response = await fetch('http://localhost:3000/api/user/profile', {
+          const response = await fetch('http://localhost:8081/api/user/profile', {
             headers: { Authorization: `Bearer ${getToken()}` }
           });
           if (!response.ok) {
@@ -1022,15 +1025,53 @@ const Dashboard = () => {
   };
 
   // Water reminder handler
-  const handleWaterReminder = () => {
+  const handleWaterReminder = async () => {
     if (waterGlassesToday < 8) {
-      setWaterGlassesToday(waterGlassesToday + 1);
-      triggerReminderNotification({
-        type: 'water',
-        title: '💧 Water Logged!',
-        body: `Great! You've had ${waterGlassesToday + 1} glasses today. ${8 - (waterGlassesToday + 1)} more to go!`,
-        tag: 'water-logged'
-      });
+      const newWaterGlasses = waterGlassesToday + 1;
+      setWaterGlassesToday(newWaterGlasses);
+      
+      try {
+        // Get today's date in YYYY-MM-DD format
+        const today = new Date();
+        const todayStr = today.toISOString().split('T')[0];
+        
+        // Try to get today's sleep log
+        try {
+          const todaySleepLog = await getSleepByDate(todayStr);
+          // If found, update it with the new water glasses count
+          if (todaySleepLog && todaySleepLog.id) {
+            await updateSleep(todaySleepLog.id, {
+              ...todaySleepLog,
+              waterGlasses: newWaterGlasses,
+              waterLiters: newWaterGlasses * 0.25
+            });
+          }
+        } catch (err) {
+          // If no sleep log exists for today, create a new one
+          await logSleep({
+            sleepDate: todayStr,
+            hoursSlept: 0,
+            sleepQuality: 'UNKNOWN',
+            sleepType: 'DAYTIME',
+            waterGlasses: newWaterGlasses,
+            waterLiters: newWaterGlasses * 0.25,
+            notes: 'Water intake logged from dashboard'
+          });
+        }
+        
+        // Refresh dashboard data to update hydration streak
+        await refreshDashboardData();
+        
+        triggerReminderNotification({
+          type: 'water',
+          title: '💧 Water Logged!',
+          body: `Great! You've had ${newWaterGlasses} glasses today. ${8 - newWaterGlasses} more to go!`,
+          tag: 'water-logged'
+        });
+      } catch (error) {
+        console.error('Failed to log water intake:', error);
+        alert('Failed to update hydration: ' + error.message);
+      }
     }
   };
 
@@ -1039,8 +1080,10 @@ const Dashboard = () => {
     console.log('💧 START button clicked - Water reminder interval:', waterIntervalHours, 'hours', waterIntervalMinutes, 'minutes', waterIntervalSeconds, 'seconds');
 
     // Clear existing timer if any
-    if (waterTimerId) {
-      clearInterval(waterTimerId);
+    if (waterTimerRef.current) {
+      clearInterval(waterTimerRef.current);
+      waterTimerRef.current = null;
+      setWaterTimerId(null);
     }
 
     const totalSeconds = (waterIntervalHours * 3600) + (waterIntervalMinutes * 60) + waterIntervalSeconds;
@@ -1099,6 +1142,7 @@ const Dashboard = () => {
       }
     }, intervalMs);
 
+    waterTimerRef.current = timerId;
     setWaterTimerId(timerId);
     console.log('💧 Water reminder timer started with ID:', timerId);
 
@@ -1121,10 +1165,13 @@ const Dashboard = () => {
 
   // Stop water reminder
   const stopWaterReminder = () => {
-    if (waterTimerId) {
-      console.log('💧 Stopping water reminder, timer ID:', waterTimerId);
-      clearInterval(waterTimerId);
+    if (waterTimerRef.current) {
+      console.log('💧 Stopping water reminder, timer ID:', waterTimerRef.current);
+      clearInterval(waterTimerRef.current);
+      waterTimerRef.current = null;
       setWaterTimerId(null);
+      waterReminderEnabledRef.current = false;
+      setWaterReminderEnabled(false);
 
       triggerReminderNotification({
         type: 'system',
@@ -1142,8 +1189,10 @@ const Dashboard = () => {
     console.log('💤 START ALARM button clicked - Sleep time:', sleepHour, ':', sleepMinute, sleepPeriod);
 
     // Clear existing timer if any
-    if (sleepTimerId) {
-      clearTimeout(sleepTimerId);
+    if (sleepTimerRef.current) {
+      clearTimeout(sleepTimerRef.current);
+      sleepTimerRef.current = null;
+      setSleepTimerId(null);
     }
 
     // Convert 12-hour format to 24-hour format
@@ -1222,10 +1271,13 @@ const Dashboard = () => {
           console.log('😴 Alarm time reached, but sleep reminder is disabled');
         }
 
-        // Reschedule for next day automatically
-        scheduleNextSleepAlarm();
+        // Reschedule only if reminder is still enabled
+        if (sleepReminderEnabledRef.current) {
+          scheduleNextSleepAlarm();
+        }
       }, msUntilAlarm);
 
+      sleepTimerRef.current = timeoutId;
       setSleepTimerId(timeoutId);
       console.log('😴 Sleep reminder timer started with ID:', timeoutId);
     };
@@ -1242,10 +1294,13 @@ const Dashboard = () => {
 
   // Stop sleep reminder
   const stopSleepReminder = () => {
-    if (sleepTimerId) {
-      console.log('💤 Stopping sleep reminder, timer ID:', sleepTimerId);
-      clearTimeout(sleepTimerId);
+    if (sleepTimerRef.current) {
+      console.log('💤 Stopping sleep reminder, timer ID:', sleepTimerRef.current);
+      clearTimeout(sleepTimerRef.current);
+      sleepTimerRef.current = null;
       setSleepTimerId(null);
+      sleepReminderEnabledRef.current = false;
+      setSleepReminderEnabled(false);
 
       triggerReminderNotification({
         type: 'system',
@@ -1271,10 +1326,10 @@ const Dashboard = () => {
   // Cleanup timers on unmount
   useEffect(() => {
     return () => {
-      if (waterTimerId) clearInterval(waterTimerId);
-      if (sleepTimerId) clearTimeout(sleepTimerId);
+      if (waterTimerRef.current) clearInterval(waterTimerRef.current);
+      if (sleepTimerRef.current) clearTimeout(sleepTimerRef.current);
     };
-  }, [waterTimerId, sleepTimerId]);
+  }, []);
 
   // Test notification function
   const testNotification = () => {
@@ -1332,7 +1387,7 @@ const Dashboard = () => {
           </span>
         ))}
       </div>
-      <nav className="bg-white/80 backdrop-blur border-b border-slate-200/70 shadow-sm relative z-[70] overflow-visible">
+      <nav className="sticky top-0 z-50 bg-white border-b border-slate-200 shadow-sm overflow-visible">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-3">

@@ -1,6 +1,6 @@
 import { getToken } from './auth';
 
-const API_BASE_URL = 'http://localhost:3000/api/bmi';
+const API_BASE_URL = 'http://localhost:8081/api/bmi';
 
 const getHeaders = () => {
     const token = getToken();

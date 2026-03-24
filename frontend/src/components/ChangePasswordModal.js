@@ -31,7 +31,7 @@ const ChangePasswordModal = ({ isOpen, onClose }) => {
         setLoading(true);
         try {
             const token = getToken();
-            const response = await fetch('http://localhost:3000/api/user/change-password', {
+            const response = await fetch('http://localhost:8081/api/user/change-password', {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',

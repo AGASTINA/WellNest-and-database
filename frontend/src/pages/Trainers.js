@@ -1,6 +1,14 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PageHeader from '../components/PageHeader';
+import trainerChatApi from '../utils/trainerChatApi';
+
+const formatTime = (value) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
+
 
 const trainers = [
   {
@@ -105,6 +113,11 @@ const Trainers = () => {
     }
   });
   const [bookingMessage, setBookingMessage] = useState('');
+  const [trainerChats, setTrainerChats] = useState({});
+  const [chatOpenForTrainer, setChatOpenForTrainer] = useState(null);
+  const [chatDraft, setChatDraft] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatError, setChatError] = useState('');
 
   const filtered = useMemo(() => {
     if (selectedSpecialization === 'All') return trainers;
@@ -122,6 +135,54 @@ const Trainers = () => {
     localStorage.setItem('wellnestBookedTrainerIds', JSON.stringify(updated));
     setBookingMessage(`Session booked with ${trainer.name} (${trainer.city}).`);
   };
+
+  const openChat = async (trainer) => {
+    setChatOpenForTrainer(trainer);
+    setChatDraft('');
+    setChatError('');
+    setChatLoading(true);
+
+    try {
+      const conversation = await trainerChatApi.getConversation(trainer.id);
+      setTrainerChats((prev) => ({
+        ...prev,
+        [String(trainer.id)]: Array.isArray(conversation) ? conversation : []
+      }));
+    } catch (error) {
+      setChatError(error.message || 'Unable to load chat. Please try again.');
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  const sendChatMessage = async () => {
+    if (!chatOpenForTrainer || !chatDraft.trim()) return;
+
+    const trainerId = String(chatOpenForTrainer.id);
+    const messageText = chatDraft.trim();
+    setChatDraft('');
+    setChatError('');
+
+    try {
+      await trainerChatApi.sendMessage(chatOpenForTrainer.id, {
+        trainerName: chatOpenForTrainer.name,
+        message: messageText
+      });
+      const refreshedConversation = await trainerChatApi.getConversation(chatOpenForTrainer.id);
+      setTrainerChats((prev) => ({
+        ...prev,
+        [trainerId]: Array.isArray(refreshedConversation) ? refreshedConversation : []
+      }));
+    } catch (error) {
+      setChatDraft(messageText);
+      setChatError(error.message || 'Unable to send message. Please try again.');
+    }
+  };
+
+  const currentChatMessages = useMemo(() => {
+    if (!chatOpenForTrainer) return [];
+    return trainerChats[String(chatOpenForTrainer.id)] || [];
+  }, [chatOpenForTrainer, trainerChats]);
 
   return (
     <div className="min-h-screen wellnest-app-bg py-10 px-4">
@@ -195,21 +256,97 @@ const Trainers = () => {
                   <p className="text-xs text-gray-400">Hourly Rate</p>
                   <p className="text-2xl font-bold text-green-600">₹{trainer.hourlyRate}</p>
                 </div>
-                <button
-                  onClick={() => handleBookSession(trainer)}
-                  disabled={!trainer.available || bookedTrainerIds.includes(trainer.id)}
-                  className={`px-5 py-2.5 rounded-lg font-semibold transition-colors ${
-                    !trainer.available || bookedTrainerIds.includes(trainer.id)
-                      ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
-                      : 'bg-green-500 text-white hover:bg-green-600'
-                  }`}
-                >
-                  {bookedTrainerIds.includes(trainer.id) ? 'Booked ✓' : 'Book Session'}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => openChat(trainer)}
+                    className="px-4 py-2 rounded-lg font-semibold border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors"
+                  >
+                    Chat
+                  </button>
+                  <button
+                    onClick={() => handleBookSession(trainer)}
+                    disabled={!trainer.available || bookedTrainerIds.includes(trainer.id)}
+                    className={`px-5 py-2.5 rounded-lg font-semibold transition-colors ${
+                      !trainer.available || bookedTrainerIds.includes(trainer.id)
+                        ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                        : 'bg-green-500 text-white hover:bg-green-600'
+                    }`}
+                  >
+                    {bookedTrainerIds.includes(trainer.id) ? 'Booked ✓' : 'Book Session'}
+                  </button>
+                </div>
               </div>
             </div>
           ))}
         </div>
+
+        {chatOpenForTrainer && (
+          <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden">
+              <div className="px-5 py-4 border-b bg-slate-50 flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900">Chat with {chatOpenForTrainer.name}</h3>
+                  <p className="text-xs text-gray-500">{chatOpenForTrainer.specialization}</p>
+                </div>
+                <button
+                  onClick={() => setChatOpenForTrainer(null)}
+                  className="px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-100"
+                >
+                  Close
+                </button>
+              </div>
+
+              <div className="h-[360px] overflow-y-auto px-5 py-4 space-y-3 bg-white">
+                {currentChatMessages.length === 0 ? (
+                  <div className="text-sm text-gray-500 bg-gray-50 rounded-xl border border-dashed p-4">
+                    Start chatting with {chatOpenForTrainer.name}. Ask about timings, training style, or goals.
+                  </div>
+                ) : (
+                  currentChatMessages.map((msg) => (
+                    <div
+                      key={msg.id}
+                      className={`max-w-[80%] rounded-2xl px-4 py-2 ${msg.sender === 'USER' ? 'ml-auto bg-blue-600 text-white' : 'mr-auto bg-gray-100 text-gray-800'}`}
+                    >
+                      <p className="text-sm whitespace-pre-wrap">{msg.message}</p>
+                      <p className={`text-[10px] mt-1 ${msg.sender === 'USER' ? 'text-blue-100' : 'text-gray-500'}`}>{formatTime(msg.createdAt)}</p>
+                    </div>
+                  ))
+                )}
+                {chatLoading && (
+                  <div className="text-sm text-gray-500 bg-gray-50 rounded-xl border border-dashed p-4">
+                    Loading conversation...
+                  </div>
+                )}
+                {chatError && (
+                  <div className="text-sm text-red-700 bg-red-50 rounded-xl border border-red-200 p-3">
+                    {chatError}
+                  </div>
+                )}
+              </div>
+
+              <div className="px-4 py-3 border-t bg-slate-50 flex items-center gap-2">
+                <input
+                  value={chatDraft}
+                  onChange={(e) => setChatDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      sendChatMessage();
+                    }
+                  }}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Type your message..."
+                />
+                <button
+                  onClick={sendChatMessage}
+                  className="px-5 py-2 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700"
+                >
+                  Send
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

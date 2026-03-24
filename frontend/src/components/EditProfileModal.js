@@ -24,7 +24,7 @@ const EditProfileModal = ({ isOpen, onClose, onUpdate }) => {
   const fetchProfile = async () => {
     try {
       const token = getToken();
-      const response = await fetch('http://localhost:3000/api/user/profile', {
+      const response = await fetch('http://localhost:8081/api/user/profile', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -62,7 +62,7 @@ const EditProfileModal = ({ isOpen, onClose, onUpdate }) => {
 
     try {
       const token = getToken();
-      const response = await fetch('http://localhost:3000/api/user/profile', {
+      const response = await fetch('http://localhost:8081/api/user/profile', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

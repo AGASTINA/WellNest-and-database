@@ -136,6 +136,8 @@ For Gmail:
 
 This project is licensed under the MIT License.
 
+See the full license text in the root `LICENSE` file.
+
 ## 👥 Support
 
 For support, email support@wellnest.com

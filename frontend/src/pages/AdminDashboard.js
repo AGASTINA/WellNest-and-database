@@ -385,6 +385,12 @@ const AdminDashboard = () => {
             </div>
             <div className="flex items-center gap-4">
               <button
+                onClick={() => navigate('/trainer-inbox')}
+                className="text-sm font-semibold text-slate-200"
+              >
+                Trainer Inbox
+              </button>
+              <button
                 onClick={() => navigate('/dashboard')}
                 className="text-sm font-semibold text-slate-200"
               >

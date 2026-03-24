@@ -14,6 +14,9 @@ import MealTracker from './pages/MealTracker';
 import Membership from './pages/Membership';
 import SleepTracker from './pages/SleepTracker';
 import Trainers from './pages/Trainers';
+import TrainerInbox from './pages/TrainerInbox';
+import CommunityBlog from './pages/CommunityBlog';
+import CommunityBlogDetail from './pages/CommunityBlogDetail';
 import ProtectedRoute from './components/ProtectedRoute';
 import MovingHealthBackground from './components/MovingHealthBackground';
 
@@ -100,10 +103,34 @@ function App() {
             }
           />
           <Route
+            path="/community-blog"
+            element={
+              <ProtectedRoute>
+                <CommunityBlog />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/community-blog/:postId"
+            element={
+              <ProtectedRoute>
+                <CommunityBlogDetail />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/admin"
             element={
               <ProtectedRoute requiredRole="ADMIN">
                 <AdminDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/trainer-inbox"
+            element={
+              <ProtectedRoute requiredRole="ADMIN">
+                <TrainerInbox />
               </ProtectedRoute>
             }
           />

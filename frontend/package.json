@@ -1,6 +1,7 @@
 {
   "name": "wellnest-frontend",
   "version": "0.1.0",
+  "license": "MIT",
   "private": true,
   "dependencies": {
     "canvas-confetti": "^1.9.4",

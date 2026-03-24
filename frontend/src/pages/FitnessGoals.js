@@ -84,6 +84,25 @@ const computeCurrentStreak = (items, predicate) => {
     return streak;
 };
 
+const computeCurrentStreakIgnoringTrailingMissing = (items, hasData, meetsGoal) => {
+    let index = items.length - 1;
+
+    // Ignore trailing days where metric data hasn't been logged yet (e.g., today's sleep)
+    while (index >= 0 && !hasData(items[index])) {
+        index -= 1;
+    }
+
+    let streak = 0;
+    for (; index >= 0; index -= 1) {
+        const day = items[index];
+        if (!hasData(day)) break;
+        if (!meetsGoal(day)) break;
+        streak += 1;
+    }
+
+    return streak;
+};
+
 const normalizeWorkoutType = (value) => {
     if (!value) return 'Other';
     const cleaned = String(value).trim();
@@ -264,7 +283,11 @@ const FitnessGoals = () => {
 
                 const workoutMinutes = Math.max(workoutMinutesFromMetrics, sessionWorkoutMinutes);
                 const sleepHours = asNumber(daySleepLog?.hoursSlept, daySleepLog?.hours_slept);
-                const waterLiters = asNumber(daySleepLog?.waterGlasses, daySleepLog?.water_glasses) * 0.25;
+                const waterLiters = asNumber(
+                    daySleepLog?.waterLiters,
+                    daySleepLog?.water_liters,
+                    asNumber(daySleepLog?.waterGlasses, daySleepLog?.water_glasses) * 0.25
+                );
                 const calorieSummary = calorieSummaries[idx] || null;
 
                 return {
@@ -273,6 +296,7 @@ const FitnessGoals = () => {
                     steps,
                     sleepHours,
                     waterLiters,
+                    hasSleepData: Boolean(daySleepLog),
                     workoutMinutes,
                     workoutCount: sessionsForDay.length,
                     caloriesConsumed: asNumber(
@@ -333,8 +357,11 @@ const FitnessGoals = () => {
                 || null;
 
             const sleepHours = asNumber(effectiveSleepLog?.hoursSlept, effectiveSleepLog?.hours_slept);
-            const waterGlasses = asNumber(effectiveSleepLog?.waterGlasses, effectiveSleepLog?.water_glasses);
-            const waterLiters = waterGlasses * 0.25;
+            const waterLiters = asNumber(
+                effectiveSleepLog?.waterLiters,
+                effectiveSleepLog?.water_liters,
+                asNumber(effectiveSleepLog?.waterGlasses, effectiveSleepLog?.water_glasses) * 0.25
+            );
 
             const workoutMinutes = Math.max(todayTrend.workoutMinutes, workoutMinutesFromLatestHealth);
 
@@ -358,8 +385,16 @@ const FitnessGoals = () => {
                 trend: weeklyTrend,
                 streaks: {
                     workout: computeCurrentStreak(weeklyTrend, (day) => day.workoutMinutes > 0),
-                    hydration: computeCurrentStreak(weeklyTrend, (day) => day.waterLiters >= 2),
-                    sleep: computeCurrentStreak(weeklyTrend, (day) => day.sleepHours >= 7)
+                    hydration: computeCurrentStreakIgnoringTrailingMissing(
+                        weeklyTrend,
+                        (day) => day.hasSleepData,
+                        (day) => day.waterLiters >= 2
+                    ),
+                    sleep: computeCurrentStreakIgnoringTrailingMissing(
+                        weeklyTrend,
+                        (day) => day.hasSleepData,
+                        (day) => day.sleepHours >= 7
+                    )
                 },
                 workoutsPerWeek: weeklySessions.length,
                 totalWorkoutMinutes: weeklyTrend.reduce((sum, day) => sum + day.workoutMinutes, 0),

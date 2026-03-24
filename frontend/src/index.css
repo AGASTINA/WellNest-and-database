@@ -128,7 +128,7 @@ body {
 .wellnest-app-bg {
   position: relative;
   background: transparent !important;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .wellnest-app-bg::before {

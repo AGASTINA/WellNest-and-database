@@ -1,7 +1,20 @@
--- Insert test user with ID 1 (only if not exists - H2 syntax)
+-- Clear existing data for clean initialization
+DELETE FROM doctors WHERE id <= 100;
+DELETE FROM hospitals WHERE id <= 100;
+DELETE FROM users WHERE id <= 100;
+
+-- Reset auto-increment counters
+ALTER TABLE users ALTER COLUMN id RESTART WITH 1;
+ALTER TABLE doctors ALTER COLUMN id RESTART WITH 1;
+ALTER TABLE hospitals ALTER COLUMN id RESTART WITH 1;
+
+-- Insert test user with ID 1
 INSERT INTO users (id, name, email, password, role, auth_provider, created_at, updated_at)
-SELECT 1, 'Test User', 'user@example.com', '$2a$10$slYQmyNdGzin7olVN3p5Be7DK5wuhUmyCQP2jUZbHxubVxvjQFN7m', 'USER', 'LOCAL', NOW(), NOW()
-WHERE NOT EXISTS (SELECT 1 FROM users WHERE id = 1);
+VALUES (1, 'Test User', 'user@example.com', '$2a$10$slYQmyNdGzin7olVN3p5Be7DK5wuhUmyCQP2jUZbHxubVxvjQFN7m', 'USER', 'LOCAL', NOW(), NOW());
+
+-- Insert admin user with ID 2
+INSERT INTO users (id, name, email, password, role, auth_provider, created_at, updated_at)
+VALUES (2, 'Admin User', 'admin@wellnest.com', '$2a$10$slYQmyNdGzin7olVN3p5Be7DK5wuhUmyCQP2jUZbHxubVxvjQFN7m', 'ADMIN', 'LOCAL', NOW(), NOW());
 
 -- Password: password123 (BCrypt encoded)
 

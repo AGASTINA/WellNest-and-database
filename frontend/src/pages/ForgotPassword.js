@@ -79,7 +79,7 @@ const ForgotPassword = () => {
     setApiError('');
 
     try {
-      const response = await fetch('http://localhost:3000/api/auth/forgot-password', {
+      const response = await fetch('http://localhost:8081/api/auth/forgot-password', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -113,7 +113,7 @@ const ForgotPassword = () => {
     setApiError('');
 
     try {
-      const response = await fetch('http://localhost:3000/api/auth/verify-otp', {
+      const response = await fetch('http://localhost:8081/api/auth/verify-otp', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -150,7 +150,7 @@ const ForgotPassword = () => {
     setApiError('');
 
     try {
-      const response = await fetch('http://localhost:3000/api/auth/reset-password', {
+      const response = await fetch('http://localhost:8081/api/auth/reset-password', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
