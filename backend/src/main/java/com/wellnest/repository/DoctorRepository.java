@@ -12,6 +12,7 @@ public interface DoctorRepository extends JpaRepository<Doctor, Long> {
     List<Doctor> findBySpecializationAndIsAvailableTrue(String specialization);
     List<Doctor> findByCityAndIsAvailableTrue(String city);
     List<Doctor> findByIsAvailableTrue();
+    Doctor findFirstByNameIgnoreCaseAndSpecializationIgnoreCase(String name, String specialization);
     
     @Query("SELECT d FROM Doctor d WHERE d.isAvailable = true AND " +
            "LOWER(d.name) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +

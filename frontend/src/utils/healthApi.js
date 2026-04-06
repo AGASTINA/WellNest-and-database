@@ -1,5 +1,3 @@
-import axios from 'axios';
-
 const API_URL = 'http://localhost:8081/api';
 
 const getAuthHeader = () => {
@@ -7,116 +5,127 @@ const getAuthHeader = () => {
   return { Authorization: `Bearer ${token}` };
 };
 
+const request = async (path, options = {}) => {
+  const response = await fetch(`${API_URL}${path}`, {
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeader(),
+      ...(options.headers || {})
+    },
+    ...options
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || `Request failed with status ${response.status}`);
+  }
+
+  if (response.status === 204) return null;
+  return response.json();
+};
+
 // Doctor API
 export const getDoctors = async () => {
-  const response = await axios.get(`${API_URL}/doctors`, { headers: getAuthHeader() });
-  return response.data;
+  return request('/doctors');
 };
 
 export const getDoctorById = async (id) => {
-  const response = await axios.get(`${API_URL}/doctors/${id}`, { headers: getAuthHeader() });
-  return response.data;
+  return request(`/doctors/${id}`);
 };
 
 export const searchDoctors = async (keyword) => {
-  const response = await axios.get(`${API_URL}/doctors/search`, {
-    params: { keyword },
-    headers: getAuthHeader()
-  });
-  return response.data;
+  const query = new URLSearchParams({ keyword }).toString();
+  return request(`/doctors/search?${query}`);
 };
 
 export const getNearbyDoctors = async (latitude, longitude, radius = 10) => {
-  const response = await axios.get(`${API_URL}/doctors/nearby`, {
-    params: { latitude, longitude, radius },
-    headers: getAuthHeader()
-  });
-  return response.data;
+  const query = new URLSearchParams({
+    latitude: String(latitude),
+    longitude: String(longitude),
+    radius: String(radius)
+  }).toString();
+  return request(`/doctors/nearby?${query}`);
 };
 
 // Hospital API
 export const getHospitals = async () => {
-  const response = await axios.get(`${API_URL}/hospitals`, { headers: getAuthHeader() });
-  return response.data;
+  return request('/hospitals');
 };
 
 export const getNearbyHospitals = async (latitude, longitude, radius = 10) => {
-  const response = await axios.get(`${API_URL}/hospitals/nearby`, {
-    params: { latitude, longitude, radius },
-    headers: getAuthHeader()
-  });
-  return response.data;
+  const query = new URLSearchParams({
+    latitude: String(latitude),
+    longitude: String(longitude),
+    radius: String(radius)
+  }).toString();
+  return request(`/hospitals/nearby?${query}`);
 };
 
 export const getNearbyEmergencyHospitals = async (latitude, longitude, radius = 10) => {
-  const response = await axios.get(`${API_URL}/hospitals/nearby/emergency`, {
-    params: { latitude, longitude, radius },
-    headers: getAuthHeader()
-  });
-  return response.data;
+  const query = new URLSearchParams({
+    latitude: String(latitude),
+    longitude: String(longitude),
+    radius: String(radius)
+  }).toString();
+  return request(`/hospitals/nearby/emergency?${query}`);
 };
 
 // Consultation API
 export const bookConsultation = async (consultationData) => {
-  const response = await axios.post(`${API_URL}/consultations`, consultationData, {
-    headers: getAuthHeader()
+  return request('/consultations', {
+    method: 'POST',
+    body: JSON.stringify(consultationData)
   });
-  return response.data;
 };
 
 export const getConsultations = async () => {
-  const response = await axios.get(`${API_URL}/consultations`, { headers: getAuthHeader() });
-  return response.data;
+  return request('/consultations');
 };
 
 export const cancelConsultation = async (id) => {
-  const response = await axios.put(`${API_URL}/consultations/${id}/cancel`, {}, {
-    headers: getAuthHeader()
+  return request(`/consultations/${id}/cancel`, {
+    method: 'PUT',
+    body: JSON.stringify({})
   });
-  return response.data;
 };
 
 // Medical Records API
 export const getMedicalRecords = async () => {
-  const response = await axios.get(`${API_URL}/medical-records`, { headers: getAuthHeader() });
-  return response.data;
+  return request('/medical-records');
 };
 
 export const createMedicalRecord = async (recordData) => {
-  const response = await axios.post(`${API_URL}/medical-records`, recordData, {
-    headers: getAuthHeader()
+  return request('/medical-records', {
+    method: 'POST',
+    body: JSON.stringify(recordData)
   });
-  return response.data;
 };
 
 export const updateMedicalRecord = async (id, recordData) => {
-  const response = await axios.put(`${API_URL}/medical-records/${id}`, recordData, {
-    headers: getAuthHeader()
+  return request(`/medical-records/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(recordData)
   });
-  return response.data;
 };
 
 export const deleteMedicalRecord = async (id) => {
-  const response = await axios.delete(`${API_URL}/medical-records/${id}`, {
-    headers: getAuthHeader()
+  return request(`/medical-records/${id}`, {
+    method: 'DELETE'
   });
-  return response.data;
 };
 
 // Health Metrics API
 export const getHealthMetrics = async () => {
-  const response = await axios.get(`${API_URL}/health-metrics`, { headers: getAuthHeader() });
-  return response.data;
+  return request('/health-metrics');
 };
 
 export const getLatestHealthMetrics = async () => {
-  const response = await axios.get(`${API_URL}/health-metrics/latest`, { headers: getAuthHeader() });
-  return response.data;
+  return request('/health-metrics/latest');
 };
 
 export const recordHealthMetrics = async (metricsData) => {
-  const response = await axios.post(`${API_URL}/health-metrics`, metricsData, {
-    headers: getAuthHeader()
+  return request('/health-metrics', {
+    method: 'POST',
+    body: JSON.stringify(metricsData)
   });
-  return response.data;
 };

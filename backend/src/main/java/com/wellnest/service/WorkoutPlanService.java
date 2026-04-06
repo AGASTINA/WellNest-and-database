@@ -62,6 +62,7 @@ public class WorkoutPlanService {
         return plans.stream().map(this::convertToDto).collect(Collectors.toList());
     }
 
+    @SuppressWarnings("null")
     public WorkoutPlanDto updateWorkoutPlan(Long id, Long userId, WorkoutPlanDto workoutPlanDto) {
         WorkoutPlan workoutPlan = workoutPlanRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new RuntimeException("Workout plan not found"));

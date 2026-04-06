@@ -10,6 +10,13 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class ConsultationRequest {
     private Long doctorId;
+    private String doctorName;
+    private String doctorSpecialization;
+    private String doctorQualification;
+    private String doctorHospitalName;
+    private String doctorCity;
+    private String doctorState;
+    private Double doctorConsultationFee;
     private String consultationType;
     private LocalDateTime scheduledAt;
     private String symptoms;

@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -26,6 +27,9 @@ public class WorkoutSessionService {
     @Transactional
     @SuppressWarnings("null")
     public WorkoutSessionDto logWorkoutSession(Long userId, WorkoutSessionDto sessionDto) {
+        userId = Objects.requireNonNull(userId, "userId is required");
+        sessionDto = Objects.requireNonNull(sessionDto, "sessionDto is required");
+
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
@@ -53,7 +57,12 @@ public class WorkoutSessionService {
     }
 
     @Transactional
+    @SuppressWarnings("null")
     public WorkoutSessionDto updateWorkoutSession(Long userId, Long sessionId, WorkoutSessionDto sessionDto) {
+        userId = Objects.requireNonNull(userId, "userId is required");
+        sessionId = Objects.requireNonNull(sessionId, "sessionId is required");
+        sessionDto = Objects.requireNonNull(sessionDto, "sessionDto is required");
+
         WorkoutSession session = workoutSessionRepository.findByIdAndUserId(sessionId, userId)
                 .orElseThrow(() -> new RuntimeException("Workout session not found"));
 
@@ -63,7 +72,11 @@ public class WorkoutSessionService {
     }
 
     @Transactional
+    @SuppressWarnings("null")
     public void deleteWorkoutSession(Long userId, Long sessionId) {
+        userId = Objects.requireNonNull(userId, "userId is required");
+        sessionId = Objects.requireNonNull(sessionId, "sessionId is required");
+
         WorkoutSession session = workoutSessionRepository.findByIdAndUserId(sessionId, userId)
                 .orElseThrow(() -> new RuntimeException("Workout session not found"));
         workoutSessionRepository.delete(session);
@@ -71,7 +84,8 @@ public class WorkoutSessionService {
 
     private void applySessionFields(WorkoutSession session, WorkoutSessionDto sessionDto) {
         if (sessionDto.getWorkoutPlanId() != null) {
-            WorkoutPlan plan = workoutPlanRepository.findById(sessionDto.getWorkoutPlanId())
+            Long workoutPlanId = Objects.requireNonNull(sessionDto.getWorkoutPlanId(), "workoutPlanId is required when set");
+            WorkoutPlan plan = workoutPlanRepository.findById(workoutPlanId)
                     .orElse(null);
             session.setWorkoutPlan(plan);
             if (sessionDto.getWorkoutName() == null && plan != null) {

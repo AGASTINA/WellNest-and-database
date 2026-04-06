@@ -13,6 +13,7 @@ import { getLatestHealthMetrics, getUserConsultations, getUserMedicalRecords } f
 import { deleteWorkoutSession, getCalorieSummary, getUserSessions, updateWorkoutSession } from '../utils/calorieApi';
 import { getUserMeals } from '../utils/mealsApi';
 import { getUserSleepLogs, logSleep, updateSleep, getSleepByDate } from '../utils/sleepApi';
+import { connectDevice, disconnectDevice, listConnectedDevices, syncDevice } from '../utils/deviceIntegrationApi';
 import BMICalculator from '../components/BMICalculator';
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import {
@@ -220,7 +221,8 @@ const dashboardHeaderTabs = [
   { label: 'BMI + Plans', sectionId: 'bmi-calculator-section', icon: '🎯' },
   { label: 'Progress (Graphs)', sectionId: 'analytics-graph-section', icon: '📈' },
   { label: 'Trainers', navigateTo: '/trainers', icon: '💪' },
-  { label: 'Blog', navigateTo: '/community-blog', icon: '📝' }
+  { label: 'Blog', navigateTo: '/community-blog', icon: '📝' },
+  { label: 'FAQ', navigateTo: '/faq', icon: '❓' }
 ];
 
 const dashboardBackgroundEmojis = [
@@ -460,6 +462,12 @@ const Dashboard = () => {
   const [sleepLogs, setSleepLogs] = useState([]);
   const [editingWorkoutSession, setEditingWorkoutSession] = useState(null);
 
+  // Device integration state
+  const [connectedDevices, setConnectedDevices] = useState([]);
+  const [isLoadingDevices, setIsLoadingDevices] = useState(false);
+  const [deviceError, setDeviceError] = useState('');
+  const [isConnectingDevice, setIsConnectingDevice] = useState(false);
+
   const [chartPeriod, setChartPeriod] = useState('month');
   const [chartMetric, setChartMetric] = useState('burned');
   const [activeWorkoutType, setActiveWorkoutType] = useState('All');
@@ -607,6 +615,9 @@ const Dashboard = () => {
 
       if (metricsResult.status === 'fulfilled') {
         setLatestHealthMetrics(metricsResult.value);
+        if (metricsResult.value) {
+          localStorage.setItem('userHealthMetrics', JSON.stringify(metricsResult.value));
+        }
       }
 
       if (consultationsResult.status === 'fulfilled' && Array.isArray(consultationsResult.value)) {
@@ -637,9 +648,58 @@ const Dashboard = () => {
     }
   }, []);
 
+  const refreshConnectedDevices = useCallback(async () => {
+    try {
+      setIsLoadingDevices(true);
+      setDeviceError('');
+      const items = await listConnectedDevices();
+      setConnectedDevices(Array.isArray(items) ? items : []);
+    } catch (error) {
+      setDeviceError(error?.response?.data?.message || error?.message || 'Failed to load connected devices');
+    } finally {
+      setIsLoadingDevices(false);
+    }
+  }, []);
+
+  const handleConnectDevice = async (provider, deviceName) => {
+    try {
+      setIsConnectingDevice(true);
+      setDeviceError('');
+      await connectDevice({ provider, deviceName });
+      await refreshConnectedDevices();
+    } catch (error) {
+      setDeviceError(error?.response?.data?.message || error?.message || 'Could not connect device');
+    } finally {
+      setIsConnectingDevice(false);
+    }
+  };
+
+  const handleSyncDevice = async (deviceId) => {
+    try {
+      setDeviceError('');
+      await syncDevice(deviceId);
+      await Promise.all([refreshConnectedDevices(), refreshDashboardData()]);
+    } catch (error) {
+      setDeviceError(error?.response?.data?.message || error?.message || 'Device sync failed');
+    }
+  };
+
+  const handleDisconnectDevice = async (deviceId) => {
+    if (!window.confirm('Disconnect this device?')) return;
+
+    try {
+      setDeviceError('');
+      await disconnectDevice(deviceId);
+      await refreshConnectedDevices();
+    } catch (error) {
+      setDeviceError(error?.response?.data?.message || error?.message || 'Could not disconnect device');
+    }
+  };
+
   // Fetch health data on mount + periodic refresh + tab focus refresh
   useEffect(() => {
     refreshDashboardData();
+    refreshConnectedDevices();
 
     const intervalId = setInterval(() => {
       refreshDashboardData();
@@ -659,7 +719,7 @@ const Dashboard = () => {
       window.removeEventListener('focus', refreshDashboardData);
       document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, [refreshDashboardData]);
+  }, [refreshDashboardData, refreshConnectedDevices]);
 
   const dashboardSummary = useMemo(() => {
     const caloriesConsumed = allMeals.reduce((sum, meal) => sum + asNumber(meal?.calories, meal?.totalCalories), 0);
@@ -1742,6 +1802,100 @@ const Dashboard = () => {
               <p className="text-indigo-100 text-sm">Track sleep quality and water intake</p>
             </button>
           </div>
+        </section>
+
+        <section id="device-integration-section" className="wellnest-surface p-6 md:p-8 mt-10">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900 wellnest-section-title">⌚ Device Integration (MVP)</h2>
+              <p className="text-sm text-gray-600 mt-1">Connect phone/watch providers and import health records into your dashboard.</p>
+            </div>
+            <button
+              onClick={refreshConnectedDevices}
+              className="px-4 py-2 rounded-lg border border-primary-200 bg-primary-50 text-primary-700 text-sm font-semibold hover:bg-primary-100 transition-colors"
+            >
+              Refresh Devices
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+            <button
+              disabled={isConnectingDevice}
+              onClick={() => handleConnectDevice('GOOGLE_FIT', 'Google Fit / Health Connect')}
+              className="px-4 py-3 rounded-xl border border-gray-200 bg-white hover:border-primary-300 text-left"
+            >
+              <p className="font-semibold text-gray-900">📱 Google Fit</p>
+              <p className="text-xs text-gray-500 mt-1">Android + Health Connect</p>
+            </button>
+            <button
+              disabled={isConnectingDevice}
+              onClick={() => handleConnectDevice('APPLE_HEALTH', 'Apple Health (iPhone/Watch)')}
+              className="px-4 py-3 rounded-xl border border-gray-200 bg-white hover:border-primary-300 text-left"
+            >
+              <p className="font-semibold text-gray-900">🍎 Apple Health</p>
+              <p className="text-xs text-gray-500 mt-1">iPhone + Apple Watch</p>
+            </button>
+            <button
+              disabled={isConnectingDevice}
+              onClick={() => handleConnectDevice('FITBIT', 'Fitbit Device')}
+              className="px-4 py-3 rounded-xl border border-gray-200 bg-white hover:border-primary-300 text-left"
+            >
+              <p className="font-semibold text-gray-900">🔵 Fitbit</p>
+              <p className="text-xs text-gray-500 mt-1">Fitbit trackers</p>
+            </button>
+            <button
+              disabled={isConnectingDevice}
+              onClick={() => handleConnectDevice('GARMIN', 'Garmin Watch')}
+              className="px-4 py-3 rounded-xl border border-gray-200 bg-white hover:border-primary-300 text-left"
+            >
+              <p className="font-semibold text-gray-900">⌚ Garmin</p>
+              <p className="text-xs text-gray-500 mt-1">Garmin wearables</p>
+            </button>
+          </div>
+
+          {deviceError ? (
+            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 text-red-700 px-4 py-3 text-sm">
+              {deviceError}
+            </div>
+          ) : null}
+
+          <div className="rounded-2xl border border-gray-200 overflow-hidden">
+            <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
+              <p className="text-sm font-semibold text-gray-700">Connected Devices</p>
+            </div>
+            <div className="divide-y divide-gray-100">
+              {isLoadingDevices ? (
+                <div className="px-4 py-4 text-sm text-gray-500">Loading connected devices...</div>
+              ) : connectedDevices.length === 0 ? (
+                <div className="px-4 py-4 text-sm text-gray-500">No devices connected yet. Connect one above and click Sync.</div>
+              ) : (
+                connectedDevices.map((device) => (
+                  <div key={device.id} className="px-4 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-gray-900">{device.deviceName}</p>
+                      <p className="text-xs text-gray-500 mt-1">Provider: {device.provider} • Last Sync: {device.lastSyncedAt ? new Date(device.lastSyncedAt).toLocaleString() : 'Never'}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleSyncDevice(device.id)}
+                        className="px-3 py-2 rounded-lg bg-primary-600 text-white text-sm font-semibold hover:bg-primary-700"
+                      >
+                        Sync Now
+                      </button>
+                      <button
+                        onClick={() => handleDisconnectDevice(device.id)}
+                        className="px-3 py-2 rounded-lg border border-red-200 text-red-700 text-sm font-semibold hover:bg-red-50"
+                      >
+                        Disconnect
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          <p className="text-xs text-gray-500 mt-3">MVP note: current sync uses mock provider data and stores imported metrics into your Health Metrics history.</p>
         </section>
 
         <section className="wellnest-surface p-6 md:p-8 mt-10">

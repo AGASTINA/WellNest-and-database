@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -22,6 +23,9 @@ public class SleepService {
     
     @Transactional
     public SleepDto logSleep(Long userId, SleepDto sleepDto) {
+        userId = Objects.requireNonNull(userId, "userId is required");
+        sleepDto = Objects.requireNonNull(sleepDto, "sleepDto is required");
+
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
         
@@ -47,6 +51,10 @@ public class SleepService {
     
     @Transactional
     public SleepDto updateSleep(Long userId, Long sleepId, SleepDto sleepDto) {
+        userId = Objects.requireNonNull(userId, "userId is required");
+        sleepId = Objects.requireNonNull(sleepId, "sleepId is required");
+        sleepDto = Objects.requireNonNull(sleepDto, "sleepDto is required");
+
         Sleep sleep = sleepRepository.findById(sleepId)
                 .orElseThrow(() -> new RuntimeException("Sleep log not found"));
         
@@ -88,6 +96,9 @@ public class SleepService {
     
     @Transactional
     public void deleteSleep(Long userId, Long sleepId) {
+        userId = Objects.requireNonNull(userId, "userId is required");
+        sleepId = Objects.requireNonNull(sleepId, "sleepId is required");
+
         Sleep sleep = sleepRepository.findById(sleepId)
                 .orElseThrow(() -> new RuntimeException("Sleep log not found"));
         

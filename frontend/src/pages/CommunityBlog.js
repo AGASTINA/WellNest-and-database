@@ -4,6 +4,7 @@ import { getStoredUser } from '../utils/auth';
 import { deletePostById, listPosts, toggleLike, upsertPost } from '../utils/blogStore';
 
 const formatDate = (value) => new Date(value).toLocaleDateString('en-GB');
+const FALLBACK_BLOG_IMAGE = 'https://images.unsplash.com/photo-1546483875-ad9014c88eba?auto=format&fit=crop&w=1200&q=80';
 
 const CommunityBlog = () => {
   const navigate = useNavigate();
@@ -163,7 +164,16 @@ const CommunityBlog = () => {
             return (
               <article key={post.id} className="wellnest-surface !bg-white/88 backdrop-blur border border-slate-200 overflow-hidden hover:shadow-xl transition-all">
                 <div className="relative h-56">
-                  <img src={post.imageUrl} alt={post.title} className="w-full h-full object-cover" />
+                  <img
+                    src={post.imageUrl || FALLBACK_BLOG_IMAGE}
+                    alt={post.title}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      if (e.currentTarget.src !== FALLBACK_BLOG_IMAGE) {
+                        e.currentTarget.src = FALLBACK_BLOG_IMAGE;
+                      }
+                    }}
+                  />
                   <span className="absolute top-4 left-4 bg-white/90 px-3 py-1 rounded-full text-xs font-semibold text-slate-700">{post.category}</span>
                 </div>
                 <div className="p-6">

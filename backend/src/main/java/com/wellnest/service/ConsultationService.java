@@ -28,9 +28,8 @@ public class ConsultationService {
     public ConsultationDto bookConsultation(Long userId, ConsultationRequest request) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
-        
-        Doctor doctor = doctorRepository.findById(request.getDoctorId())
-                .orElseThrow(() -> new RuntimeException("Doctor not found"));
+
+        Doctor doctor = resolveDoctorForBooking(request);
 
         Consultation consultation = new Consultation();
         consultation.setUser(user);
@@ -45,6 +44,60 @@ public class ConsultationService {
 
         Consultation saved = consultationRepository.save(consultation);
         return convertToDto(saved);
+    }
+
+    private Doctor resolveDoctorForBooking(ConsultationRequest request) {
+        Long doctorId = request.getDoctorId();
+        if (doctorId != null) {
+            Doctor existingById = doctorRepository.findById(doctorId).orElse(null);
+            if (existingById != null) {
+                return existingById;
+            }
+        }
+
+        String doctorName = safeOrDefault(request.getDoctorName(), "General Physician");
+        String specialization = safeOrDefault(request.getDoctorSpecialization(), "General Medicine");
+
+        Doctor existingByName = doctorRepository.findFirstByNameIgnoreCaseAndSpecializationIgnoreCase(
+                doctorName,
+                specialization
+        );
+        if (existingByName != null) {
+            return existingByName;
+        }
+
+        Doctor doctor = new Doctor();
+        doctor.setName(doctorName);
+        doctor.setSpecialization(specialization);
+        doctor.setQualification(safeOrDefault(request.getDoctorQualification(), "MBBS"));
+        doctor.setEmail(buildPlaceholderEmail(doctorName));
+        doctor.setPhoneNumber("+91-0000000000");
+        doctor.setConsultationFee(request.getDoctorConsultationFee() != null ? request.getDoctorConsultationFee() : 500.0);
+        doctor.setHospitalName(safeOrDefault(request.getDoctorHospitalName(), "WellNest Partner Clinic"));
+        doctor.setAddress("Address unavailable");
+        doctor.setCity(safeOrDefault(request.getDoctorCity(), "Chennai"));
+        doctor.setState(safeOrDefault(request.getDoctorState(), "Tamil Nadu"));
+        doctor.setCountry("India");
+        doctor.setLatitude(13.0827);
+        doctor.setLongitude(80.2707);
+        doctor.setAvailabilityDays("Mon,Tue,Wed,Thu,Fri");
+        doctor.setAvailabilityHours("09:00-17:00");
+        doctor.setIsAvailable(true);
+
+        return doctorRepository.save(doctor);
+    }
+
+    private String safeOrDefault(String value, String fallback) {
+        return (value == null || value.isBlank()) ? fallback : value.trim();
+    }
+
+    private String buildPlaceholderEmail(String doctorName) {
+        String normalized = doctorName == null ? "doctor" : doctorName.toLowerCase().replaceAll("[^a-z0-9]+", ".");
+        normalized = normalized.replaceAll("^\\.+|\\.+$", "");
+        if (normalized.isBlank()) {
+            normalized = "doctor";
+        }
+        return normalized + "@wellnest.local";
     }
 
     public List<ConsultationDto> getUserConsultations(Long userId) {

@@ -17,13 +17,16 @@ import Trainers from './pages/Trainers';
 import TrainerInbox from './pages/TrainerInbox';
 import CommunityBlog from './pages/CommunityBlog';
 import CommunityBlogDetail from './pages/CommunityBlogDetail';
+import FAQ from './pages/FAQ';
 import ProtectedRoute from './components/ProtectedRoute';
 import MovingHealthBackground from './components/MovingHealthBackground';
+import FitnessHealthChatbot from './components/FitnessHealthChatbot';
 
 function App() {
   return (
     <Router>
       <MovingHealthBackground />
+      <FitnessHealthChatbot />
       <div className="wellnest-route-layer">
         <Routes>
           <Route path="/" element={<LandingPage />} />
@@ -115,6 +118,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <CommunityBlogDetail />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/faq"
+            element={
+              <ProtectedRoute>
+                <FAQ />
               </ProtectedRoute>
             }
           />

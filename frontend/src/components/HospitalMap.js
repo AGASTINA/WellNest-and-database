@@ -154,7 +154,7 @@ const HospitalMap = ({ hospitals = [], userLocation, onHospitalClick }) => {
               <p style="margin: 4px 0; font-size: 12px;"><strong>Phone:</strong> ${hospital.phoneNumber}</p>
               ${distance ? `<p style="margin: 4px 0; font-size: 12px; color: #3b82f6;"><strong>Distance:</strong> ${distance.toFixed(2)} km</p>` : ''}
               ${hospital.hasEmergency ? '<p style="margin: 4px 0; font-size: 11px; color: #ef4444;">🚨 24/7 Emergency Available</p>' : ''}
-              <button onclick="window.viewHospitalDetails(${hospital.id})" style="margin-top: 8px; padding: 4px 12px; background: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 11px;">View Details</button>
+              <button onclick="window.viewHospitalDetails(${JSON.stringify(String(hospital.id))})" style="margin-top: 8px; padding: 4px 12px; background: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 11px;">View Details</button>
             </div>
           `;
 
