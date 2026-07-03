@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { setAuthSession } from '../utils/auth';
-import { apiUrl } from '../utils/apiConfig';
+import { postAuth } from '../utils/authApi';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -79,28 +79,15 @@ const Login = () => {
     setApiError('');
 
     try {
-      const response = await fetch(apiUrl('/api/auth/login'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setAuthSession(data.token, data.user);
-        if (data.user?.role === 'ADMIN') {
-          navigate('/admin');
-        } else {
-          navigate('/dashboard');
-        }
+      const data = await postAuth('/api/auth/login', formData);
+      setAuthSession(data.token, data.user);
+      if (data.user?.role === 'ADMIN') {
+        navigate('/admin');
       } else {
-        setApiError(data.message || 'Login failed. Please try again.');
+        navigate('/dashboard');
       }
     } catch (error) {
-      setApiError('Network error. Please check your connection and try again.');
+      setApiError(error.message || 'Login failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -116,28 +103,15 @@ const Login = () => {
     setApiError('');
 
     try {
-      const res = await fetch(apiUrl('/api/auth/google'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ idToken: response.credential })
-      });
-
-      const data = await res.json();
-
-      if (res.ok) {
-        setAuthSession(data.token, data.user);
-        if (data.user?.role === 'ADMIN') {
-          navigate('/admin');
-        } else {
-          navigate('/dashboard');
-        }
+      const data = await postAuth('/api/auth/google', { idToken: response.credential });
+      setAuthSession(data.token, data.user);
+      if (data.user?.role === 'ADMIN') {
+        navigate('/admin');
       } else {
-        setApiError(data.message || 'Google login failed.');
+        navigate('/dashboard');
       }
     } catch (error) {
-      setApiError('Network error. Please check your connection and try again.');
+      setApiError(error.message || 'Google login failed.');
     } finally {
       setLoading(false);
     }

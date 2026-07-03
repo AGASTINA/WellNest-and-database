@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { setAuthSession } from '../utils/auth';
-import { apiUrl } from '../utils/apiConfig';
+import { postAuth } from '../utils/authApi';
 
 const SignUp = () => {
   const navigate = useNavigate();
@@ -98,28 +98,15 @@ const SignUp = () => {
     setApiError('');
 
     try {
-      const response = await fetch(apiUrl('/api/auth/register'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: formData.name,
-          email: formData.email,
-          password: formData.password,
-          role: formData.role
-        }),
+      await postAuth('/api/auth/register', {
+        name: formData.name,
+        email: formData.email,
+        password: formData.password,
+        role: formData.role
       });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        navigate('/login', { state: { message: 'Registration successful! Please log in.' } });
-      } else {
-        setApiError(data.message || 'Registration failed. Please try again.');
-      }
+      navigate('/login', { state: { message: 'Registration successful! Please log in.' } });
     } catch (error) {
-      setApiError('Network error. Please check your connection and try again.');
+      setApiError(error.message || 'Registration failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -135,28 +122,15 @@ const SignUp = () => {
     setApiError('');
 
     try {
-      const res = await fetch(apiUrl('/api/auth/google'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ idToken: response.credential })
-      });
-
-      const data = await res.json();
-
-      if (res.ok) {
-        setAuthSession(data.token, data.user);
-        if (data.user?.role === 'ADMIN') {
-          navigate('/admin');
-        } else {
-          navigate('/dashboard');
-        }
+      const data = await postAuth('/api/auth/google', { idToken: response.credential });
+      setAuthSession(data.token, data.user);
+      if (data.user?.role === 'ADMIN') {
+        navigate('/admin');
       } else {
-        setApiError(data.message || 'Google sign up failed.');
+        navigate('/dashboard');
       }
     } catch (error) {
-      setApiError('Network error. Please check your connection and try again.');
+      setApiError(error.message || 'Google sign up failed.');
     } finally {
       setLoading(false);
     }
