@@ -16,7 +16,6 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/device-integrations")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "${cors.allowed.origins}")
 public class DeviceIntegrationController {
 
     private final DeviceIntegrationService deviceIntegrationService;

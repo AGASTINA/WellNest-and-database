@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import React, { useState, useEffect } from 'react';
 import HospitalMap from '../components/HospitalMap';
 import PageHeader from '../components/PageHeader';

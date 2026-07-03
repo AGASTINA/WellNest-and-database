@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { setAuthSession } from '../utils/auth';
+import { apiUrl } from '../utils/apiConfig';
 
 const SignUp = () => {
   const navigate = useNavigate();
@@ -97,7 +98,7 @@ const SignUp = () => {
     setApiError('');
 
     try {
-      const response = await fetch('http://localhost:8081/api/auth/register', {
+      const response = await fetch(apiUrl('/api/auth/register'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -134,7 +135,7 @@ const SignUp = () => {
     setApiError('');
 
     try {
-      const res = await fetch('http://localhost:8081/api/auth/google', {
+      const res = await fetch(apiUrl('/api/auth/google'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

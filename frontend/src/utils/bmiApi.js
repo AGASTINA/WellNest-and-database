@@ -1,6 +1,8 @@
 import { getToken } from './auth';
 
-const API_BASE_URL = 'http://localhost:8081/api/bmi';
+import { API_BASE_URL as WELLNEST_API_BASE_URL } from './apiConfig';
+
+const API_BASE_URL = `${WELLNEST_API_BASE_URL}/bmi`;
 
 const getHeaders = () => {
     const token = getToken();

@@ -27,6 +27,9 @@ public class SecurityConfig {
 
     @Value("${cors.allowed.origins:http://localhost:3000,http://localhost:3001}")
     private String corsAllowedOrigins;
+
+    @Value("${cors.allowed.origin-patterns:http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000,http://127.0.0.1:3001,https://*.netlify.app}")
+    private String corsAllowedOriginPatterns;
     
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -53,8 +56,13 @@ public class SecurityConfig {
             .map(String::trim)
             .filter(origin -> !origin.isEmpty())
             .collect(Collectors.toList());
+        List<String> allowedOriginPatterns = Arrays.stream(corsAllowedOriginPatterns.split(","))
+            .map(String::trim)
+            .filter(origin -> !origin.isEmpty())
+            .collect(Collectors.toList());
 
         configuration.setAllowedOrigins(allowedOrigins);
+        configuration.setAllowedOriginPatterns(allowedOriginPatterns);
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
         configuration.setAllowCredentials(true);

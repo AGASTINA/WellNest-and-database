@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { apiUrl } from '../utils/apiConfig';
 
 const ForgotPassword = () => {
   const [step, setStep] = useState(1); // 1: email, 2: otp, 3: new password
@@ -79,7 +80,7 @@ const ForgotPassword = () => {
     setApiError('');
 
     try {
-      const response = await fetch('http://localhost:8081/api/auth/forgot-password', {
+      const response = await fetch(apiUrl('/api/auth/forgot-password'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -113,7 +114,7 @@ const ForgotPassword = () => {
     setApiError('');
 
     try {
-      const response = await fetch('http://localhost:8081/api/auth/verify-otp', {
+      const response = await fetch(apiUrl('/api/auth/verify-otp'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -150,7 +151,7 @@ const ForgotPassword = () => {
     setApiError('');
 
     try {
-      const response = await fetch('http://localhost:8081/api/auth/reset-password', {
+      const response = await fetch(apiUrl('/api/auth/reset-password'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

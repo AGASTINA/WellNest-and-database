@@ -15,7 +15,6 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/consultations")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "${cors.allowed.origins}")
 public class ConsultationController {
 
     private final ConsultationService consultationService;

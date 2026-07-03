@@ -1,6 +1,6 @@
 import { getToken } from './auth';
 
-const API_BASE_URL = 'http://localhost:8081';
+import { API_ORIGIN as API_BASE_URL } from './apiConfig';
 
 const getHeaders = () => {
   const token = getToken();

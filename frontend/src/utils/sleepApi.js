@@ -1,4 +1,6 @@
-const API_URL = 'http://localhost:8081/api/sleep';
+import { API_BASE_URL } from './apiConfig';
+
+const API_URL = `${API_BASE_URL}/sleep`;
 
 const getAuthHeader = () => {
   const token = localStorage.getItem('token');

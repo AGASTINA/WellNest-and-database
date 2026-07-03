@@ -15,7 +15,6 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/medical-records")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "${cors.allowed.origins}")
 public class MedicalRecordController {
 
     private final MedicalRecordService medicalRecordService;

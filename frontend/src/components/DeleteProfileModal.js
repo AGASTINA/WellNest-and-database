@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { getToken, clearAuthSession } from '../utils/auth';
 import { useNavigate } from 'react-router-dom';
+import { apiUrl } from '../utils/apiConfig';
 
 const DeleteProfileModal = ({ isOpen, onClose }) => {
     const navigate = useNavigate();
@@ -11,7 +12,7 @@ const DeleteProfileModal = ({ isOpen, onClose }) => {
         setLoading(true);
         try {
             const token = getToken();
-            const response = await fetch('http://localhost:8081/api/user/delete', {
+            const response = await fetch(apiUrl('/api/user/delete'), {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${token}`

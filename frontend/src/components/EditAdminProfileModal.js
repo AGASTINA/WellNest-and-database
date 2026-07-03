@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getToken, setAuthSession, getStoredUser } from '../utils/auth';
+import { apiUrl } from '../utils/apiConfig';
 
 const EditAdminProfileModal = ({ isOpen, onClose, onUpdate }) => {
     const [formData, setFormData] = useState({
@@ -20,7 +21,7 @@ const EditAdminProfileModal = ({ isOpen, onClose, onUpdate }) => {
     const fetchProfile = async () => {
         try {
             const token = getToken();
-            const response = await fetch('http://localhost:8081/api/user/profile', {
+            const response = await fetch(apiUrl('/api/user/profile'), {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }
@@ -67,7 +68,7 @@ const EditAdminProfileModal = ({ isOpen, onClose, onUpdate }) => {
 
         try {
             const token = getToken();
-            const response = await fetch('http://localhost:8081/api/user/profile', {
+            const response = await fetch(apiUrl('/api/user/profile'), {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',

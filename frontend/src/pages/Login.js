@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { setAuthSession } from '../utils/auth';
+import { apiUrl } from '../utils/apiConfig';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -78,7 +79,7 @@ const Login = () => {
     setApiError('');
 
     try {
-      const response = await fetch('http://localhost:8081/api/auth/login', {
+      const response = await fetch(apiUrl('/api/auth/login'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -115,7 +116,7 @@ const Login = () => {
     setApiError('');
 
     try {
-      const res = await fetch('http://localhost:8081/api/auth/google', {
+      const res = await fetch(apiUrl('/api/auth/google'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { clearAuthSession, getStoredUser, getToken } from '../utils/auth';
+import { apiUrl } from '../utils/apiConfig';
 
 const ProtectedRoute = ({ children, requiredRole }) => {
   const [isChecking, setIsChecking] = useState(true);
@@ -17,7 +18,7 @@ const ProtectedRoute = ({ children, requiredRole }) => {
       }
 
       try {
-        const response = await fetch('http://localhost:8081/api/user/profile', {
+        const response = await fetch(apiUrl('/api/user/profile'), {
           method: 'GET',
           headers: {
             Authorization: `Bearer ${token}`

@@ -6,7 +6,7 @@ const FAQ = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedId, setExpandedId] = useState(null);
 
-  const faqs = [
+  const faqs = useMemo(() => [
     {
       id: 1,
       category: 'General Health',
@@ -115,7 +115,7 @@ const FAQ = () => {
       question: 'What\'s active recovery and how often should I do it?',
       answer: 'Active recovery is light movement (walking, yoga, swimming) on rest days at 25-30% max effort. Improves blood flow, reduces soreness, and aids recovery. Do 1-2 active recovery sessions per week. Avoid high intensity on these days.'
     }
-  ];
+  ], []);
 
   const filteredFAQs = useMemo(() => {
     const q = searchQuery.toLowerCase();
@@ -126,9 +126,7 @@ const FAQ = () => {
         faq.answer.toLowerCase().includes(q) ||
         faq.category.toLowerCase().includes(q)
     );
-  }, [searchQuery]);
-
-  const categories = ['All', ...new Set(faqs.map(f => f.category))];
+  }, [faqs, searchQuery]);
 
   const toggleExpand = (id) => {
     setExpandedId(expandedId === id ? null : id);

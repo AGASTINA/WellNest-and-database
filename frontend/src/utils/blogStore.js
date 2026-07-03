@@ -1,3 +1,4 @@
+/* eslint-disable no-useless-escape */
 const BLOG_STORAGE_KEY = 'wellnest-community-blog-v2';
 
 const starterPosts = [

@@ -10,7 +10,6 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/user")
-@CrossOrigin(origins = "${cors.allowed.origins}")
 @RequiredArgsConstructor
 public class UserController {
 

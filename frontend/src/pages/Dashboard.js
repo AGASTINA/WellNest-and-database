@@ -16,6 +16,7 @@ import { getUserSleepLogs, logSleep, updateSleep, getSleepByDate } from '../util
 import { connectDevice, disconnectDevice, listConnectedDevices, syncDevice } from '../utils/deviceIntegrationApi';
 import BMICalculator from '../components/BMICalculator';
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { apiUrl } from '../utils/apiConfig';
 import {
   LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer
 } from 'recharts';
@@ -523,7 +524,7 @@ const Dashboard = () => {
         }
 
         const fetchProfile = async () => {
-          const response = await fetch('http://localhost:8081/api/user/profile', {
+          const response = await fetch(apiUrl('/api/user/profile'), {
             headers: { Authorization: `Bearer ${getToken()}` }
           });
           if (!response.ok) {
