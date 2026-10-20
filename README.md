@@ -87,7 +87,30 @@ mvn clean install
 mvn spring-boot:run
 ```
 
-The backend will run on `http://localhost:8080`
+The backend will run on `http://localhost:8081`
+
+## ☁️ Deploy to Render
+
+The repository includes a `render.yaml` Blueprint for deploying the React
+frontend, Spring Boot API, and PostgreSQL database together.
+
+1. Push the repository to GitHub and connect it in the [Render Dashboard](https://dashboard.render.com).
+2. Select **New + → Blueprint**, choose this repository, and use the root `render.yaml`.
+3. When prompted, provide `JWT_SECRET` as a fresh, random value of at least 64
+   bytes. On Windows PowerShell, generate one with:
+   ```powershell
+   [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(64))
+   ```
+   Store it as a Render secret; do not commit it.
+4. After deployment, add `MAIL_USERNAME` and `MAIL_PASSWORD` to the
+   `wellnest-api` service if OTP email is needed. Add `GOOGLE_CLIENT_ID` to
+   both services to enable Google sign-in.
+
+The Blueprint uses Render's free web-service and database plans for a demo.
+Free web services can sleep when idle, and free PostgreSQL databases are
+temporary; choose a paid database plan before storing data you need to keep.
+The local H2 setup remains unchanged when the `render` Spring profile is not
+active.
 
 ## 📧 Email Configuration
 

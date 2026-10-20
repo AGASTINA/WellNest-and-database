@@ -1,4 +1,7 @@
 const configuredApiUrl = process.env.REACT_APP_API_URL;
+const normalizedApiUrl = configuredApiUrl
+  ? (/^https?:\/\//i.test(configuredApiUrl) ? configuredApiUrl : `https://${configuredApiUrl}`)
+  : '';
 const isLocalBrowser =
   typeof window !== 'undefined' &&
   ['localhost', '127.0.0.1'].includes(window.location.hostname);
@@ -7,7 +10,7 @@ const isFileOrTest =
   window.location.protocol === 'file:' ||
   window.location.hostname === '';
 
-export const API_ORIGIN = (configuredApiUrl || (isLocalBrowser || isFileOrTest ? 'http://localhost:8081' : '')).replace(/\/$/, '');
+export const API_ORIGIN = (normalizedApiUrl || (isLocalBrowser || isFileOrTest ? 'http://localhost:8081' : '')).replace(/\/$/, '');
 export const API_BASE_URL = `${API_ORIGIN}/api`;
 
 export const apiUrl = (path) => {
