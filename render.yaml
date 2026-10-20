@@ -40,7 +40,7 @@ services:
       - key: GOOGLE_CLIENT_ID
         value: 692818498755-3eir94mi67lj86i6ehcbaapi9l45pvla.apps.googleusercontent.com
       - key: JWT_SECRET
-        generateValue: true
+        sync: false
 
   - type: web
     name: wellnest-frontend
