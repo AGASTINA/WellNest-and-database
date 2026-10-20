@@ -54,10 +54,7 @@ services:
         destination: /index.html
     envVars:
       - key: REACT_APP_API_URL
-        fromService:
-          type: web
-          name: wellnest-api
-          property: host
+        value: https://wellnest-api-n4rd.onrender.com
       - key: REACT_APP_GOOGLE_CLIENT_ID
         value: 692818498755-3eir94mi67lj86i6ehcbaapi9l45pvla.apps.googleusercontent.com
 
